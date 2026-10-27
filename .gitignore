@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+app/build/
+app/release/
+baselineProfiles/
+
+# Local machine config: contains an absolute path to the SDK
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.hprof
+.kotlin/
+
+# OS
+.DS_Store
+Thumbs.db
