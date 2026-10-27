@@ -26,8 +26,10 @@ import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -239,6 +241,22 @@ fun SettingsScreen(onBack: () -> Unit) {
                 checked = state.relayEnabled,
                 onCheckedChange = viewModel::setRelayEnabled,
             )
+            SettingSwitch(
+                icon = Icons.Default.Public,
+                title = "Relay su internet",
+                subtitle = "Per chi è lontano. Passa dal broker pubblico broker.hivemq.com, " +
+                    "che vede solo dati cifrati: non i messaggi, non il tuo nome.",
+                checked = state.publicRelay,
+                onCheckedChange = viewModel::setPublicRelay,
+            )
+
+            SectionHeader("Aggiornamenti")
+
+            UpdateRow(
+                version = state.appVersion,
+                updateState = state.updateState,
+                onCheck = viewModel::checkForUpdates,
+            )
 
             SectionHeader("Dati su questo dispositivo")
 
@@ -365,6 +383,85 @@ private fun SettingRow(
     }
 }
 
+/**
+ * The update row.
+ *
+ * Every outcome gets its own line of text: a check that silently does nothing is
+ * indistinguishable from one that failed, and the user is the only one who can
+ * tell whether the phone had a connection at that moment.
+ */
+@Composable
+private fun UpdateRow(
+    version: String,
+    updateState: UpdateCheckState,
+    onCheck: () -> Unit,
+) {
+    val checking = updateState is UpdateCheckState.Checking
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Versione installata", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = version.ifBlank { "sconosciuta" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onCheck, enabled = !checking) {
+                if (checking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(if (checking) "Controllo…" else "Cerca aggiornamenti")
+            }
+        }
+        val message = when (updateState) {
+            is UpdateCheckState.Idle -> null
+            is UpdateCheckState.Checking -> null
+            is UpdateCheckState.UpToDate -> "Hai già l'ultima versione."
+            is UpdateCheckState.Available -> "Disponibile la versione ${updateState.version}."
+            is UpdateCheckState.Failed -> updateState.reason
+        }
+        if (message != null) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (updateState is UpdateCheckState.Failed) {
+                    LocalChatColors.current.expired
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        if (updateState is UpdateCheckState.Available && updateState.url != null) {
+            Text(
+                text = "Scarica l'APK",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .clickable { openUrl(updateState.url) },
+            )
+        }
+    }
+}
+
+/** Opens a link in whatever the phone uses for links. */
+private fun openUrl(url: String) {
+    runCatching {
+        val intent = android.content.Intent(
+            android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse(url),
+        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        appContext()?.startActivity(intent)
+    }
+}
+
+private fun appContext(): android.content.Context? = dev.shutchat.app.ShutChatApp.get()
+
 @Composable
 private fun SettingSwitch(
     title: String,
@@ -447,6 +544,15 @@ private fun DiagnosticsBlock(
             icon = Icons.Default.Bluetooth,
             label = "Bluetooth",
             value = if (diagnostics.nearbyActive) "attivo" else "spento",
+        )
+        DiagnosticLine(
+            icon = Icons.Default.Public,
+            label = "Relay su internet",
+            value = when {
+                !diagnostics.relayActive && diagnostics.relayError == null -> "spento"
+                diagnostics.relayActive -> "collegato"
+                else -> "non collegato: ${diagnostics.relayError}"
+            },
         )
         DiagnosticLine(
             icon = Icons.Default.Devices,

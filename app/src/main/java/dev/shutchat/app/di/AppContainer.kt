@@ -17,8 +17,11 @@ import dev.shutchat.app.p2p.RoomSpec
 import dev.shutchat.app.p2p.lan.LanDiscovery
 import dev.shutchat.app.p2p.lan.LanServer
 import dev.shutchat.app.p2p.nearby.NearbyTransport
+import dev.shutchat.app.p2p.relay.RelayTransport
 import dev.shutchat.app.p2p.protocol.Envelope
 import dev.shutchat.app.p2p.protocol.WireMessage
+import dev.shutchat.app.update.HttpReleaseSource
+import dev.shutchat.app.update.UpdateChecker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -51,6 +54,11 @@ class AppContainer(private val context: Context) {
 
     val nearby: NearbyTransport by lazy { NearbyTransport(context) }
 
+    /** Public-broker transport for long distance. Off unless the user enables it. */
+    val relay: RelayTransport by lazy {
+        RelayTransport(scope = appScope, clientId = "shutchat-" + java.util.UUID.randomUUID())
+    }
+
     val mesh: MeshEngine by lazy {
         MeshEngine(
             scope = appScope,
@@ -58,6 +66,7 @@ class AppContainer(private val context: Context) {
             lanServer = lanServer,
             lanDiscovery = lanDiscovery,
             appContext = context,
+            relay = relay,
         )
     }
 
@@ -76,6 +85,9 @@ class AppContainer(private val context: Context) {
     }
 
     val mediaStore: MediaStore by lazy { MediaStore(context) }
+
+    /** Talks only to the public release feed. No other outbound traffic exists. */
+    val updateChecker: UpdateChecker by lazy { UpdateChecker(HttpReleaseSource) }
 
     val transfer: AttachmentTransfer by lazy { AttachmentTransfer(appScope, mesh, mediaStore) }
 
@@ -101,6 +113,7 @@ class AppContainer(private val context: Context) {
         val displayName = settings.currentDisplayName()
         mesh.setIdentity(nodeId, displayName)
         mesh.relayEnabled = settings.relayEnabled.first()
+        mesh.setPublicRelay(settings.publicRelay.first())
 
         refreshRooms()
 

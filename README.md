@@ -33,6 +33,15 @@ Transport is chosen at runtime:
 - **LAN** — UDP multicast to find peers on the same network, TCP for the data.
 - **Nearby Connections** — Bluetooth and Wi-Fi Direct, for devices that are close
   but not on a shared network.
+- **Public relay** — MQTT over TLS, for devices on different networks. Off by
+  default and never enabled on its own, because it is the one path that leaves
+  the local network. The broker relays sealed frames on a topic derived from the
+  invite secret, so it sees neither the message nor who is talking; it cannot
+  read a frame any more than a LAN peer could.
+
+Two devices behind mobile carriers have no reachable address, so something has to
+be reachable for long-distance chat to work at all. The relay is that something,
+and it is deliberately the only third party involved.
 
 A foreground service keeps the mesh listening when the app is closed, because
 with no push server a message can only arrive if something is awake to receive it.
@@ -49,6 +58,7 @@ with no push server a message can only arrive if something is awake to receive i
 - Automatic expiry and rotation of invite codes
 - Notifications with inline reply
 - Light and dark theme with Material You dynamic colour
+- Settings with a check for updates against the release feed
 
 ## Build
 

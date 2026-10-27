@@ -36,6 +36,13 @@ class SettingsStore(private val context: Context) {
         val lanDiscovery = booleanPreferencesKey("lan_discovery")
         val nearbyDiscovery = booleanPreferencesKey("nearby_discovery")
         val relayEnabled = booleanPreferencesKey("relay_enabled")
+        /**
+         * Long-distance relay over a public broker. Separate from [relayEnabled],
+         * which only means "forward for other devices". This one leaves the local
+         * network, so it defaults to off and is never turned on without the user
+         * asking: the rest of the app promises no server.
+         */
+        val publicRelay = booleanPreferencesKey("public_relay")
         val onboardingDone = booleanPreferencesKey("onboarding_done")
         val lastSeenBroadcast = longPreferencesKey("last_seen_broadcast")
     }
@@ -55,6 +62,8 @@ class SettingsStore(private val context: Context) {
     val lanDiscovery: Flow<Boolean> = context.dataStore.data.map { it[Keys.lanDiscovery] ?: true }
     val nearbyDiscovery: Flow<Boolean> = context.dataStore.data.map { it[Keys.nearbyDiscovery] ?: true }
     val relayEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.relayEnabled] ?: true }
+    /** Defaults to false: reaching the internet is opt-in, never automatic. */
+    val publicRelay: Flow<Boolean> = context.dataStore.data.map { it[Keys.publicRelay] ?: false }
     val onboardingDone: Flow<Boolean> = context.dataStore.data.map { it[Keys.onboardingDone] ?: false }
 
     /**
@@ -86,6 +95,8 @@ class SettingsStore(private val context: Context) {
     suspend fun setLanDiscovery(value: Boolean) = edit { it[Keys.lanDiscovery] = value }
     suspend fun setNearbyDiscovery(value: Boolean) = edit { it[Keys.nearbyDiscovery] = value }
     suspend fun setRelayEnabled(value: Boolean) = edit { it[Keys.relayEnabled] = value }
+
+    suspend fun setPublicRelay(value: Boolean) = edit { it[Keys.publicRelay] = value }
     suspend fun setOnboardingDone(value: Boolean) = edit { it[Keys.onboardingDone] = value }
     suspend fun setLastExpirySweep(value: Long) = edit { it[Keys.lastSeenBroadcast] = value }
 

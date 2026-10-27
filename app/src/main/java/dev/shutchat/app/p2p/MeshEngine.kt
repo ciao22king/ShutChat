@@ -17,6 +17,7 @@ import dev.shutchat.app.p2p.protocol.HelloAck
 import dev.shutchat.app.p2p.protocol.Ping
 import dev.shutchat.app.p2p.protocol.Protocol
 import dev.shutchat.app.p2p.protocol.WireMessage
+import dev.shutchat.app.p2p.relay.RelayTransport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -56,6 +57,7 @@ class MeshEngine(
     private val lanServer: LanServer,
     private val lanDiscovery: LanDiscovery,
     private val appContext: Context,
+    private val relay: RelayTransport,
 ) {
 
     /** Decrypted envelopes, ready to be turned into rows by the repository. */
@@ -91,6 +93,11 @@ class MeshEngine(
 
     @Volatile
     var relayEnabled: Boolean = true
+
+    /** True when the public relay is switched on and a broker session is up. */
+    @Volatile
+    var relayActive: Boolean = false
+        private set
 
     @Volatile
     var diagnostics: MeshDiagnostics = MeshDiagnostics()
@@ -143,7 +150,36 @@ class MeshEngine(
         }
         // Drop endpoints belonging to rooms we no longer hold.
         nearbyEndpointsByRoom.keys.retainAll(rooms.keys)
+        if (relayEnabled) publishRelayTopics()
         refreshDiagnostics()
+    }
+
+    /** Turns the public relay on or off and starts or stops the broker session. */
+    fun setPublicRelay(value: Boolean) {
+        relayEnabled = value
+        if (!started) return
+        if (value) {
+            publishRelayTopics()
+            relay.start()
+        } else {
+            relay.stop()
+            relayActive = false
+        }
+        refreshDiagnostics()
+    }
+
+    /**
+     * Recomputes the broker topics from the live room set.
+     *
+     * Topics come from the invite secret, never from the room id: the room id is
+     * broadcast in the clear on every frame, so using it here would let anyone
+     * watching the broker recognise a room they have seen elsewhere.
+     */
+    private fun publishRelayTopics() {
+        val topics = rooms.values
+            .filterNot { it.expired }
+            .associate { it.roomIdHex to RoomCrypto.relayTopic(it.inviteSecret) }
+        relay.setTopics(topics)
     }
 
     fun start(enableLan: Boolean, enableNearby: Boolean) {
@@ -164,6 +200,9 @@ class MeshEngine(
         scope.launch(Dispatchers.IO) {
             nearby.endpoints.collect { event -> onNearbyEndpoint(event) }
         }
+        scope.launch(Dispatchers.IO) {
+            relay.frames.collect { frame -> handleRelayFrame(frame) }
+        }
 
         if (lanEnabled) {
             lanPort = lanServer.start(scope)
@@ -175,6 +214,10 @@ class MeshEngine(
                 nearby.advertise(ids, localDisplayName)
                 nearby.discover(ids)
             }
+        }
+        if (relayEnabled) {
+            publishRelayTopics()
+            relay.start()
         }
 
         scope.launch {
@@ -191,6 +234,8 @@ class MeshEngine(
         lanDiscovery.stop()
         lanServer.stop()
         nearby.stop()
+        relay.stop()
+        relayActive = false
         links.clear()
         peers.clear()
         nearbyEndpointsByRoom.clear()
@@ -207,6 +252,10 @@ class MeshEngine(
      */
     suspend fun broadcast(envelope: Envelope): Int {
         val room = rooms[envelope.roomId] ?: return 0
+        // Mark our own envelope as seen before it leaves. A broker echoes a
+        // publish back to the publisher, and envelopes that name no author (a
+        // roster, a sync result) would otherwise be processed as incoming.
+        seen.markSeen(envelope.dedupeKey())
         val plaintext = EnvelopeCodec.encode(envelope)
         val sealed = RoomCrypto.encrypt(room.messageKey, plaintext, room.roomIdBytes)
         val frame = Framing.frameControl(room.roomIdBytes, sealed)
@@ -235,6 +284,15 @@ class MeshEngine(
                 if (!nearby.isConnected(endpoint)) return@forEach
                 scope.launch {
                     if (nearby.send(endpoint, frame)) framesSent.incrementAndGet()
+                }
+                delivered++
+            }
+            // The relay reaches peers that share no network with us. It is counted
+            // only when the broker session is actually up, so a message is not
+            // reported as delivered to a broker that is not listening.
+            if (relayEnabled && relayActive && excludeNodeId == null) {
+                scope.launch {
+                    if (relay.send(roomIdHex, frame)) framesSent.incrementAndGet()
                 }
                 delivered++
             }
@@ -368,7 +426,42 @@ class MeshEngine(
         framesReceived.incrementAndGet()
         val roomIdHex = parsed.roomId.toHex()
         val room = rooms[roomIdHex] ?: return
+        processFrame(parsed, roomIdHex, room, link.remoteNodeId, link.transportLabel, frame)
+        refreshDiagnostics()
+    }
 
+    /**
+     * Routes one frame that arrived from the public relay.
+     *
+     * There is no link here: the broker is a shared pipe, not a peer, so the
+     * sender is unknown until the envelope is decrypted. The frame is treated
+     * exactly like one from a link once that is known, which is what lets the two
+     * transports interoperate — a message sent over Wi-Fi Direct can be answered
+     * over the relay and the conversation above never notices.
+     */
+    private suspend fun handleRelayFrame(frame: ByteArray) {
+        val parsed = runCatching { Framing.parse(frame) }.getOrNull() ?: return
+        framesReceived.incrementAndGet()
+        val roomIdHex = parsed.roomId.toHex()
+        val room = rooms[roomIdHex] ?: return
+        processFrame(parsed, roomIdHex, room, fromNodeId = null, transport = "Relay", frame = frame)
+        refreshDiagnostics()
+    }
+
+    /**
+     * Shared body of both inbound paths.
+     *
+     * [fromNodeId] is null for relay frames, where the sender is only learned from
+     * the decrypted envelope.
+     */
+    private suspend fun processFrame(
+        parsed: Framing.Frame,
+        roomIdHex: String,
+        room: RoomSpec,
+        fromNodeId: String?,
+        transport: String,
+        frame: ByteArray,
+    ) {
         when (parsed) {
             is Framing.Frame.Chunk -> {
                 val body = runCatching { RoomCrypto.decrypt(room.transferKey, parsed.body, parsed.roomId) }
@@ -383,7 +476,7 @@ class MeshEngine(
                         index = parsed.index,
                         total = parsed.total,
                         body = body,
-                        fromNodeId = link.remoteNodeId,
+                        fromNodeId = fromNodeId ?: UNKNOWN_SENDER,
                     ),
                 )
             }
@@ -399,23 +492,28 @@ class MeshEngine(
                     }
                 val envelope = runCatching { EnvelopeCodec.decode(plaintext) }.getOrNull() ?: return
 
+                // A frame that came back through the relay carries our own node id
+                // when we sent it. The broker echoes to every subscriber, so this
+                // is the normal case, not an edge one.
+                val sender = fromNodeId ?: envelope.senderNodeId()
+                if (sender == localNodeId) return
+
                 val dedupeKey = envelope.dedupeKey()
                 val firstTime = seen.markSeen(dedupeKey)
                 if (firstTime) {
-                    val peer = peers[link.remoteNodeId]
+                    val peer = peers[sender]
                     received.tryEmit(
                         ReceivedEnvelope(
                             envelope = envelope,
-                            fromNodeId = link.remoteNodeId,
-                            fromDisplayName = peer?.displayName ?: link.remoteNodeId.take(6),
-                            transport = link.transportLabel,
+                            fromNodeId = sender,
+                            fromDisplayName = peer?.displayName ?: sender.take(6),
+                            transport = transport,
                         ),
                     )
                 }
-                maybeRelay(frame, envelope, roomIdHex, excludeNodeId = link.remoteNodeId)
+                maybeRelay(frame, envelope, roomIdHex, excludeNodeId = sender)
             }
         }
-        refreshDiagnostics()
     }
 
     /**
@@ -533,10 +631,13 @@ class MeshEngine(
     }
 
     private fun refreshDiagnostics() {
+        relayActive = relayEnabled && relay.connected
         diagnostics = MeshDiagnostics(
             lanPort = lanPort,
             lanActive = lanEnabled && lanServer.port != 0,
             nearbyActive = nearbyEnabled,
+            relayActive = relayActive,
+            relayError = if (relayEnabled) relay.lastError else null,
             connectedPeers = links.size,
             roomsAdvertised = rooms.values.count { !it.expired },
             framesSent = framesSent.get(),
@@ -561,7 +662,11 @@ class MeshEngine(
     companion object {
         private const val TAG = "MeshEngine"
         private const val PING_INTERVAL_MILLIS = 20_000L
-        const val APP_VERSION = "1.0.0"
+        /** Reported to peers in the handshake; follows the app version. */
+        val APP_VERSION = dev.shutchat.app.BuildConfig.VERSION_NAME
+
+        /** Placeholder sender for frames that name no author, such as a roster. */
+        const val UNKNOWN_SENDER = "sconosciuto"
     }
 }
 
@@ -610,4 +715,31 @@ internal fun Envelope.dedupeKey(): String = when (this) {
     is dev.shutchat.app.p2p.protocol.TransferStart -> "ts:$transferId"
     is dev.shutchat.app.p2p.protocol.TransferComplete -> "tc:$transferId"
     is dev.shutchat.app.p2p.protocol.TransferCancel -> "tx:$transferId"
+}
+
+/**
+ * The node that sent this envelope, when the envelope names one.
+ *
+ * Used to drop our own frames when they come back from the relay: a broker
+ * echoes a publish to every subscriber including the publisher, so without this
+ * every message would be received twice.
+ *
+ * @return the sender, or an empty string for envelopes that are about a room
+ *         rather than a person — a roster or a sync result has no single author.
+ */
+internal fun Envelope.senderNodeId(): String = when (this) {
+    is dev.shutchat.app.p2p.protocol.WireMessage -> senderNodeId
+    is dev.shutchat.app.p2p.protocol.Hello -> nodeId
+    is dev.shutchat.app.p2p.protocol.HelloAck -> nodeId
+    is dev.shutchat.app.p2p.protocol.Receipt -> nodeId
+    is dev.shutchat.app.p2p.protocol.Typing -> nodeId
+    is dev.shutchat.app.p2p.protocol.ReactionUpdate -> nodeId
+    is dev.shutchat.app.p2p.protocol.EditMessage -> nodeId
+    is dev.shutchat.app.p2p.protocol.DeleteMessage -> nodeId
+    is dev.shutchat.app.p2p.protocol.JoinNotice -> nodeId
+    is dev.shutchat.app.p2p.protocol.LeaveNotice -> nodeId
+    is dev.shutchat.app.p2p.protocol.SyncRequest -> nodeId
+    is dev.shutchat.app.p2p.protocol.Ping -> nodeId
+    is dev.shutchat.app.p2p.protocol.Pong -> nodeId
+    else -> ""
 }
