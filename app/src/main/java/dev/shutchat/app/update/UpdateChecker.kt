@@ -109,6 +109,6 @@ class UpdateChecker(
     }
 
     companion object {
-        const val DEFAULT_FEED = "https://api.github.com/repos/ciao22king/ShutChat-/releases/latest"
+        const val DEFAULT_FEED = "https://api.github.com/repos/ciao22king/ShutChat/releases/latest"
     }
 }
