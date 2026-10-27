@@ -6,6 +6,7 @@ import dev.shutchat.app.core.Clock
 import dev.shutchat.app.core.Ids
 import dev.shutchat.app.data.repo.ChatRepository
 import dev.shutchat.app.data.repo.MessageRepository
+import dev.shutchat.app.data.repo.RetryPolicy
 import dev.shutchat.app.di.AppContainer
 import dev.shutchat.app.domain.model.Chat
 import dev.shutchat.app.domain.model.ChatMember
@@ -109,7 +110,10 @@ class ConversationViewModel(
     val mediaStore: MediaStore get() = container.mediaStore
 
     init {
-        viewModelScope.launch { chats.markRead(chatId) }
+        viewModelScope.launch {
+            chats.markRead(chatId)
+            runCatching { messages.acknowledgeRead(chatId) }
+        }
         viewModelScope.launch {
             while (true) {
                 now.value = container.clock.nowMillis()
@@ -294,12 +298,9 @@ class ConversationViewModel(
                     sizeBytes = picked.sizeBytes,
                 ),
             )
-            val delivered = container.broadcastEnvelope(envelope)
-            messages.setStatus(
-                listOf(messageId),
-                if (delivered > 0) MessageStatus.DELIVERED else MessageStatus.QUEUED,
-            )
-            if (delivered == 0) {
+            val handedTo = container.broadcastEnvelope(envelope)
+            messages.setStatus(listOf(messageId), RetryPolicy.afterHandoff(handedTo))
+            if (handedTo == 0) {
                 error.value = "Nessun peer raggiungibile: il file resta in attesa"
                 return@launch
             }
@@ -357,12 +358,11 @@ class ConversationViewModel(
             replyToId = message.replyToId,
             replyToPreview = message.replyToPreview,
         )
-        val delivered = container.broadcastEnvelope(envelope)
-        messages.setStatus(
-            listOf(message.id),
-            if (delivered > 0) MessageStatus.DELIVERED else MessageStatus.QUEUED,
-        )
-        if (delivered == 0) {
+        val handedTo = container.broadcastEnvelope(envelope)
+        // Not DELIVERED: the frame was only handed to a transport. The recipient's
+        // receipt promotes it, and the outbox re-sends it until that arrives.
+        messages.setStatus(listOf(message.id), RetryPolicy.afterHandoff(handedTo))
+        if (handedTo == 0) {
             error.value = "Nessun peer raggiungibile ora: il messaggio parte appena qualcuno si collega"
         }
         chats.touch(chatId, message.createdAt)

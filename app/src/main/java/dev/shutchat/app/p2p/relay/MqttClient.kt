@@ -220,8 +220,8 @@ class MqttClient(
          *
          * A public, open broker is used on purpose: it requires no account, so it
          * cannot link a room to a user, and it is reachable from anywhere. The
-         * trade-off is that it is best-effort, which is why the relay is off by
-         * default and why the UI states plainly what it does.
+         * trade-off is that it is best-effort, which is why the UI states plainly
+         * what it does and why the outbox re-sends until acknowledged.
          */
         const val DEFAULT_HOST = "broker.hivemq.com"
         const val DEFAULT_PORT = 8883

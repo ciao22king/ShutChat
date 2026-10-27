@@ -18,21 +18,22 @@ enum class MessageKind {
 /**
  * Delivery state of an outgoing message.
  *
- * ShutChat has no server, so there is no "delivered to the server" step:
- * [QUEUED] means the message is waiting for the recipient to come back online,
- * and it is retried by every device that holds the room code.
+ * ShutChat has no server, so there is no "delivered to the server" step. A message
+ * is [SENDING] once a transport has taken it and [DELIVERED] only after the
+ * recipient acknowledges it with a receipt. Anything not acknowledged stays in the
+ * retry queue and is re-sent when a transport becomes usable.
  */
 enum class MessageStatus {
     /** Only on this device, transport not ready yet. */
     PENDING,
 
-    /** Handed to at least one transport, no acknowledgement yet. */
+    /** Handed to at least one transport; the recipient has not acknowledged yet. */
     SENDING,
 
-    /** Waiting for an offline peer; retried when it reappears. */
+    /** Waiting for an offline peer; re-sent as soon as a transport appears. */
     QUEUED,
 
-    /** Peer acknowledged receipt. */
+    /** Peer acknowledged receipt with a room-sealed receipt envelope. */
     DELIVERED,
 
     /** Peer opened the conversation. */

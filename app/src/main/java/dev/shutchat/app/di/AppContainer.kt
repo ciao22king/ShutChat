@@ -7,6 +7,8 @@ import dev.shutchat.app.data.db.ShutChatDatabase
 import dev.shutchat.app.data.repo.ChatRepository
 import dev.shutchat.app.data.repo.InboundHandler
 import dev.shutchat.app.data.repo.MessageRepository
+import dev.shutchat.app.data.repo.Outbox
+import dev.shutchat.app.data.repo.RetryPolicy
 import dev.shutchat.app.data.settings.SettingsStore
 import dev.shutchat.app.domain.usecase.ChatFactory
 import dev.shutchat.app.media.MediaStore
@@ -91,6 +93,15 @@ class AppContainer(private val context: Context) {
 
     val transfer: AttachmentTransfer by lazy { AttachmentTransfer(appScope, mesh, mediaStore) }
 
+    /**
+     * Re-sends messages that never reached anyone.
+     *
+     * Declared after the mesh because it depends on it, and started in
+     * [bootstrap] rather than on construction so it cannot run before the
+     * transports are up.
+     */
+    val outbox: Outbox by lazy { Outbox(database, clock, mesh, appScope) }
+
     /** UI-visible message when a code expires, so a screen can react. */
     val expiredCodes = MutableSharedFlow<List<String>>(
         extraBufferCapacity = 4,
@@ -112,7 +123,7 @@ class AppContainer(private val context: Context) {
         val nodeId = settings.nodeId()
         val displayName = settings.currentDisplayName()
         mesh.setIdentity(nodeId, displayName)
-        mesh.relayEnabled = settings.relayEnabled.first()
+        mesh.forwardingEnabled = settings.relayEnabled.first()
         mesh.setPublicRelay(settings.publicRelay.first())
 
         refreshRooms()
@@ -122,6 +133,9 @@ class AppContainer(private val context: Context) {
         mesh.start(lanEnabled, nearbyEnabled)
 
         appScope.launch { consumeIncoming() }
+        appScope.launch { reAcknowledgeDuplicates() }
+        appScope.launch { flushOutboxOnNewTransport() }
+        outbox.start()
         appScope.launch { consumeChunks() }
         appScope.launch { watchPeerPresence() }
         appScope.launch { sweepExpiredCodes() }
@@ -159,15 +173,11 @@ class AppContainer(private val context: Context) {
             body = text,
             createdAt = message.createdAt,
         )
-        val delivered = mesh.broadcast(envelope)
-        messageRepository.setStatus(
-            listOf(message.id),
-            if (delivered > 0) {
-                dev.shutchat.app.domain.model.MessageStatus.DELIVERED
-            } else {
-                dev.shutchat.app.domain.model.MessageStatus.QUEUED
-            },
-        )
+        val handedTo = mesh.broadcast(envelope)
+        // Handing a frame to a socket is not delivery, so this is not DELIVERED.
+        // The recipient's receipt promotes it, and until then the outbox keeps
+        // re-sending it.
+        messageRepository.setStatus(listOf(message.id), RetryPolicy.afterHandoff(handedTo))
         database.chatDao().updateLastMessage(
             chatId = chatId,
             preview = text,
@@ -194,6 +204,35 @@ class AppContainer(private val context: Context) {
             }
             runCatching { inboundHandler.handle(received) }
                 .onFailure { Log.w("AppContainer", "envelope scartato", it) }
+        }
+    }
+
+    /**
+     * Re-sends the queue whenever a transport becomes usable.
+     *
+     * This is the event that matters: a message that could not be delivered was
+     * waiting for exactly this, so reacting to it means the message leaves as soon
+     * as it can instead of at the next tick.
+     */
+    private suspend fun flushOutboxOnNewTransport() {
+        appScope.launch { mesh.peerConnected.collect { runCatching { outbox.flush() } } }
+        appScope.launch { mesh.peerLost.collect { runCatching { outbox.flush() } } }
+    }
+
+    /**
+     * Re-acknowledges a message that arrived twice.
+     *
+     * A duplicate means the sender did not receive the first receipt, so the answer
+     * is to send another one. Only messages are acknowledged: control envelopes are
+     * idempotent, and acknowledging a receipt would loop.
+     */
+    private suspend fun reAcknowledgeDuplicates() {
+        mesh.duplicates.collect { envelope ->
+            if (envelope !is WireMessage) return@collect
+            val chat = chatRepository.chatEntityForRoom(envelope.roomId) ?: return@collect
+            runCatching {
+                messageRepository.acknowledge(chat.roomId, listOf(envelope.messageId), "delivered")
+            }
         }
     }
 

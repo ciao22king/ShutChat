@@ -244,8 +244,9 @@ fun SettingsScreen(onBack: () -> Unit) {
             SettingSwitch(
                 icon = Icons.Default.Public,
                 title = "Relay su internet",
-                subtitle = "Per chi è lontano. Passa dal broker pubblico broker.hivemq.com, " +
-                    "che vede solo dati cifrati: non i messaggi, non il tuo nome.",
+                subtitle = "Attivo: serve per scrivere a chi è lontano. Passa dal broker " +
+                    "pubblico broker.hivemq.com, che vede solo dati cifrati: non i messaggi, " +
+                    "non il tuo nome. Spegnilo per restare solo sulla rete locale.",
                 checked = state.publicRelay,
                 onCheckedChange = viewModel::setPublicRelay,
             )

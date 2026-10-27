@@ -15,8 +15,9 @@ import kotlinx.coroutines.launch
  * network. It is the one part of the app that depends on infrastructure nobody
  * here controls, so three things are true of it by design:
  *
- * 1. It is **off unless the user turns it on**. The rest of the app promises no
- *    server, and that promise would be a lie if this connected on its own.
+ * 1. It is **on by default and can be switched off**. Without it the app only
+ *    works between devices on the same network, which is not what a messenger is
+ *    for; the settings screen states plainly what the broker is used for.
  * 2. It carries **only sealed frames**. The payload is the same AES-256-GCM blob
  *    that travels over Wi-Fi Direct, and the topic is derived from the invite
  *    secret, so the broker sees neither the text nor who is talking.
@@ -24,8 +25,8 @@ import kotlinx.coroutines.launch
  *    LAN and Nearby, and the settings screen says the relay is down rather than
  *    pretending messages were sent.
  *
- * At-most-once is acceptable at this layer: the mesh already stores anything it
- * could not hand to a peer and retries when a link appears.
+ * At-most-once is acceptable at this layer: the mesh stores anything it could not
+ * hand to a peer, and the outbox re-sends it until the recipient acknowledges it.
  */
 class RelayTransport(
     private val scope: CoroutineScope,
