@@ -18,7 +18,7 @@ class UpdateCheckerTest {
           "tag_name": "v1.2.0",
           "name": "ShutChat 1.2.0",
           "body": "Correzioni varie.",
-          "html_url": "https://github.com/ciao22king/ShutChat-/releases/tag/v1.2.0",
+          "html_url": "https://github.com/ciao22king/ShutChat/releases/tag/v1.2.0",
           "assets": [
             {"name": "ShutChat-1.2.0.apk",
              "browser_download_url": "https://example.invalid/ShutChat-1.2.0.apk",
