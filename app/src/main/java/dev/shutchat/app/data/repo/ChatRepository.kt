@@ -355,6 +355,10 @@ class MessageRepository(
      * grow the envelope without telling anyone anything new.
      */
     suspend fun acknowledgeRead(chatId: String) {
+        // Delivery receipts are a transport fact and are always sent, because the
+        // sender's outbox needs them to stop retrying. Read receipts are a privacy
+        // choice the user makes in settings, and only they are gated here.
+        if (!settings.readReceipts.first()) return
         val chat = db.chatDao().find(chatId) ?: return
         val ids = db.messageDao().recentIncomingIds(chatId, limit = READ_RECEIPT_LIMIT)
         if (ids.isEmpty()) return
@@ -397,7 +401,14 @@ class InboundHandler(
         when (sender) {
             is dev.shutchat.app.p2p.protocol.WireMessage -> {
                 val existing = db.messageDao().find(sender.messageId)
-                if (existing != null) return chat.id
+                if (existing != null) {
+                    // Already stored, so this is a re-send. Acknowledge it again
+                    // rather than returning silently: the sender is retrying
+                    // precisely because it never saw the earlier receipt, and
+                    // staying quiet would keep it retrying for the whole window.
+                    messages.acknowledge(chat.roomId, listOf(sender.messageId), state = "delivered")
+                    return chat.id
+                }
                 val message = Message(
                     id = sender.messageId,
                     chatId = chat.id,

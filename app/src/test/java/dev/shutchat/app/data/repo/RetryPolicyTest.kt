@@ -50,6 +50,29 @@ class RetryPolicyTest {
     }
 
     @Test
+    fun `a fresh message is still worth retrying`() {
+        val now = 1_000_000_000_000L
+        assertTrue(RetryPolicy.isWithinRetryWindow(createdAt = now - 60_000, now = now))
+    }
+
+    @Test
+    fun `a message older than the window is given up on`() {
+        // Without a cutoff an undelivered message would be re-encrypted and
+        // re-sent on every tick forever, for a room that is most likely dead.
+        val now = 1_000_000_000_000L
+        val tooOld = now - RetryPolicy.MAX_AGE_MILLIS - 1
+        assertFalse(RetryPolicy.isWithinRetryWindow(createdAt = tooOld, now = now))
+    }
+
+    @Test
+    fun `the window is long enough to survive a holiday offline`() {
+        assertTrue(
+            "una settimana offline deve restare recuperabile",
+            RetryPolicy.MAX_AGE_MILLIS > 7L * 24 * 60 * 60 * 1000,
+        )
+    }
+
+    @Test
     fun `backoff never returns a non positive delay`() {
         (0..50).forEach { attempt ->
             assertTrue("tentativo $attempt", RetryPolicy.delayMillis(attempt) > 0)
