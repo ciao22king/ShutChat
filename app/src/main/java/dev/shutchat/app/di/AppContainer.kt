@@ -134,7 +134,6 @@ class AppContainer(private val context: Context) {
 
         appScope.launch { consumeIncoming() }
         appScope.launch { reAcknowledgeDuplicates() }
-        appScope.launch { flushOutboxOnNewTransport() }
         outbox.start()
         appScope.launch { consumeChunks() }
         appScope.launch { watchPeerPresence() }
@@ -208,18 +207,6 @@ class AppContainer(private val context: Context) {
     }
 
     /**
-     * Re-sends the queue whenever a transport becomes usable.
-     *
-     * This is the event that matters: a message that could not be delivered was
-     * waiting for exactly this, so reacting to it means the message leaves as soon
-     * as it can instead of at the next tick.
-     */
-    private suspend fun flushOutboxOnNewTransport() {
-        appScope.launch { mesh.peerConnected.collect { runCatching { outbox.flush() } } }
-        appScope.launch { mesh.peerLost.collect { runCatching { outbox.flush() } } }
-    }
-
-    /**
      * Re-acknowledges a message that arrived twice.
      *
      * A duplicate means the sender did not receive the first receipt, so the answer
@@ -241,8 +228,17 @@ class AppContainer(private val context: Context) {
     }
 
     private suspend fun watchPeerPresence() {
-        mesh.peerConnected.collect { chatRepository.updatePeerPresence(mesh.peerInfos()) }
-        mesh.peerLost.collect { chatRepository.updatePeerPresence(mesh.peerInfos()) }
+        // The outbox is flushed on the same events: a peer appearing is the thing
+        // an undelivered message was waiting for, so it should leave now rather
+        // than at the next timer tick.
+        mesh.peerConnected.collect {
+            chatRepository.updatePeerPresence(mesh.peerInfos())
+            runCatching { outbox.flush() }
+        }
+        mesh.peerLost.collect {
+            chatRepository.updatePeerPresence(mesh.peerInfos())
+            runCatching { outbox.flush() }
+        }
     }
 
     /**
