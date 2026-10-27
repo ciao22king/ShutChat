@@ -63,6 +63,19 @@ class MqttClient(
         private set
 
     /**
+     * Completes when the session ends, whether it was closed on purpose or the
+     * socket died.
+     *
+     * [frames] is a shared flow and therefore never completes on its own, so a
+     * caller waiting on it to finish would wait forever and never reconnect.
+     * This is the signal to wait on instead.
+     */
+    private val closed = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+    /** Suspends until the session is over. */
+    suspend fun awaitClosed() = closed.await()
+
+    /**
      * Opens the socket, performs the MQTT handshake, then subscribes.
      *
      * @return true when the broker accepted the connection and the subscription.
@@ -118,6 +131,7 @@ class MqttClient(
 
     fun close() {
         connected = false
+        closed.complete(Unit)
         readerJob?.cancel()
         keepAliveJob?.cancel()
         readerJob = null
@@ -159,6 +173,8 @@ class MqttClient(
             if (connected) Log.d(TAG, "lettura interrotta: ${e.message}")
         } finally {
             connected = false
+            // Wake whoever is waiting to reconnect: the socket is gone.
+            closed.complete(Unit)
         }
     }
 

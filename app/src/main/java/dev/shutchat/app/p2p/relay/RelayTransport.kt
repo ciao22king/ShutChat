@@ -78,10 +78,17 @@ class RelayTransport(
                     connected = true
                     lastError = null
                     attempt = 0
-                    session.frames.collect { frame -> frames.tryEmit(frame) }
-                    // The collect returns when the socket dies.
+                    // Forward frames until the session ends. Awaiting the close
+                    // signal rather than collecting [frames]: a shared flow never
+                    // completes, so collecting it would block here forever and the
+                    // reconnect below would never run.
+                    val pump = scope.launch {
+                        session.frames.collect { frame -> frames.tryEmit(frame) }
+                    }
+                    session.awaitClosed()
+                    pump.cancel()
                     connected = false
-                    lastError = "connessione al relay interrotta"
+                    if (running) lastError = "connessione al relay interrotta"
                 } else {
                     lastError = session.lastError ?: "relay non raggiungibile"
                 }

@@ -224,6 +224,11 @@ class MeshEngine(
             while (isActive) {
                 delay(PING_INTERVAL_MILLIS)
                 runCatching { sendPings() }
+                // The relay connects and drops on its own thread, so its state is
+                // folded into diagnostics here rather than only on link events:
+                // otherwise settings would keep showing the relay as off while it
+                // is connected, or as connected after the broker went away.
+                runCatching { refreshDiagnostics() }
             }
         }
         refreshDiagnostics()
@@ -289,8 +294,10 @@ class MeshEngine(
             }
             // The relay reaches peers that share no network with us. It is counted
             // only when the broker session is actually up, so a message is not
-            // reported as delivered to a broker that is not listening.
-            if (relayEnabled && relayActive && excludeNodeId == null) {
+            // reported as delivered to a broker that is not listening. The live
+            // state is read rather than the cached [relayActive], which is only
+            // refreshed on events and would still read false just after connect.
+            if (relayEnabled && relay.connected && excludeNodeId == null) {
                 scope.launch {
                     if (relay.send(roomIdHex, frame)) framesSent.incrementAndGet()
                 }
