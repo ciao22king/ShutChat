@@ -50,6 +50,16 @@ object RoomCrypto {
     fun beaconTag(secret: ByteArray): ByteArray = derive(secret, "shutchat/beacon", 8)
 
     /**
+     * Topic on the public relay for this room.
+     *
+     * Derived from the invite secret with its own domain separation, so the relay
+     * operator sees an opaque label it cannot tie to a person or to a room it has
+     * seen before. Only devices holding the invite code can compute it, which is
+     * what keeps a public broker from being a directory of ShutChat conversations.
+     */
+    fun relayTopic(secret: ByteArray): String = "shutchat/v1/" + derive(secret, "shutchat/relay", 16).toHex()
+
+    /**
      * Short authentication string for a room. Two devices holding the same code
      * show the same digits, so users can compare them out loud to confirm nobody
      * swapped a code in transit.

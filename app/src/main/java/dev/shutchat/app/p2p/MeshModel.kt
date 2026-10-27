@@ -56,6 +56,10 @@ data class MeshDiagnostics(
     val lanPort: Int = 0,
     val lanActive: Boolean = false,
     val nearbyActive: Boolean = false,
+    /** True when the public relay is enabled and a broker session is up. */
+    val relayActive: Boolean = false,
+    /** Why the relay is not up, when it is not. Null means no problem to report. */
+    val relayError: String? = null,
     val connectedPeers: Int = 0,
     val roomsAdvertised: Int = 0,
     val framesSent: Long = 0,
