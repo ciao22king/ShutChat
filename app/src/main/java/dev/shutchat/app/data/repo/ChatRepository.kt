@@ -69,6 +69,9 @@ class ChatRepository(
 
     suspend fun chatEntity(chatId: String): ChatEntity? = db.chatDao().find(chatId)
 
+    /** Resolves a room id back to its chat row, for envelopes that name a room. */
+    suspend fun chatEntityForRoom(roomId: String): ChatEntity? = db.chatDao().findByRoom(roomId)
+
     suspend fun members(chatId: String): List<ChatMember> =
         db.memberDao().list(chatId).map(Mappers::toMember)
 
@@ -325,9 +328,51 @@ class MessageRepository(
         }
     }
 
+    /**
+     * Tells the room that these messages arrived, or were read.
+     *
+     * Broadcast rather than addressed to one node: a group has several senders and
+     * every one of them needs the acknowledgement, and the envelope is sealed with
+     * the room key either way.
+     */
+    suspend fun acknowledge(roomId: String, messageIds: List<String>, state: String) {
+        if (messageIds.isEmpty()) return
+        mesh.broadcast(
+            dev.shutchat.app.p2p.protocol.Receipt(
+                roomId = roomId,
+                messageIds = messageIds,
+                state = state,
+                nodeId = settings.nodeId(),
+            ),
+        )
+    }
+
+    /**
+     * Marks the incoming messages of a chat as read and tells the room.
+     *
+     * Sent as a batch of recent ids rather than the whole transcript: a receipt
+     * names messages explicitly, and re-acknowledging history on every open would
+     * grow the envelope without telling anyone anything new.
+     */
+    suspend fun acknowledgeRead(chatId: String) {
+        // Delivery receipts are a transport fact and are always sent, because the
+        // sender's outbox needs them to stop retrying. Read receipts are a privacy
+        // choice the user makes in settings, and only they are gated here.
+        if (!settings.readReceipts.first()) return
+        val chat = db.chatDao().find(chatId) ?: return
+        val ids = db.messageDao().recentIncomingIds(chatId, limit = READ_RECEIPT_LIMIT)
+        if (ids.isEmpty()) return
+        acknowledge(chat.roomId, ids, state = "read")
+    }
+
     /** Queued messages to retry when a peer becomes reachable again. */
     suspend fun pending(): List<Message> =
         db.messageDao().pendingOutgoing().map { Mappers.toMessage(it, null, emptyList()) }
+
+    private companion object {
+        /** How many recent incoming messages a read receipt names. */
+        const val READ_RECEIPT_LIMIT = 50
+    }
 
     suspend fun updateAttachmentProgress(attachmentId: String, progress: Float) =
         db.attachmentDao().setProgress(attachmentId, progress)
@@ -356,7 +401,14 @@ class InboundHandler(
         when (sender) {
             is dev.shutchat.app.p2p.protocol.WireMessage -> {
                 val existing = db.messageDao().find(sender.messageId)
-                if (existing != null) return chat.id
+                if (existing != null) {
+                    // Already stored, so this is a re-send. Acknowledge it again
+                    // rather than returning silently: the sender is retrying
+                    // precisely because it never saw the earlier receipt, and
+                    // staying quiet would keep it retrying for the whole window.
+                    messages.acknowledge(chat.roomId, listOf(sender.messageId), state = "delivered")
+                    return chat.id
+                }
                 val message = Message(
                     id = sender.messageId,
                     chatId = chat.id,
@@ -387,6 +439,10 @@ class InboundHandler(
                 )
                 messages.storeIncoming(message, sender.senderNodeId)
                 chats.addMember(chat.id, sender.senderNodeId, sender.senderName)
+                // Tell the sender it landed. Without this the sender's outbox
+                // cannot know the message arrived, so it would re-send it forever,
+                // and "delivered" would be a claim nothing had verified.
+                messages.acknowledge(chat.roomId, listOf(sender.messageId), state = "delivered")
                 db.chatDao().updateLastMessage(
                     chatId = chat.id,
                     preview = dev.shutchat.app.core.Format.messagePreview(sender.body, sender.kind),

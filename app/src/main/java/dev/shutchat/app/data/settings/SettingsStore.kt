@@ -39,8 +39,9 @@ class SettingsStore(private val context: Context) {
         /**
          * Long-distance relay over a public broker. Separate from [relayEnabled],
          * which only means "forward for other devices". This one leaves the local
-         * network, so it defaults to off and is never turned on without the user
-         * asking: the rest of the app promises no server.
+         * network. It is on by default because long distance chat is the point of
+         * the app: a messenger that only works in the same room is not one. It can
+         * be switched off from settings.
          */
         val publicRelay = booleanPreferencesKey("public_relay")
         val onboardingDone = booleanPreferencesKey("onboarding_done")
@@ -62,8 +63,8 @@ class SettingsStore(private val context: Context) {
     val lanDiscovery: Flow<Boolean> = context.dataStore.data.map { it[Keys.lanDiscovery] ?: true }
     val nearbyDiscovery: Flow<Boolean> = context.dataStore.data.map { it[Keys.nearbyDiscovery] ?: true }
     val relayEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.relayEnabled] ?: true }
-    /** Defaults to false: reaching the internet is opt-in, never automatic. */
-    val publicRelay: Flow<Boolean> = context.dataStore.data.map { it[Keys.publicRelay] ?: false }
+    /** Defaults to true: reaching the internet is what makes distance work. */
+    val publicRelay: Flow<Boolean> = context.dataStore.data.map { it[Keys.publicRelay] ?: true }
     val onboardingDone: Flow<Boolean> = context.dataStore.data.map { it[Keys.onboardingDone] ?: false }
 
     /**

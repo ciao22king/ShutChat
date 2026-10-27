@@ -76,6 +76,19 @@ class MeshEngine(
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
 
+    /**
+     * Envelopes that arrived again after being seen once.
+     *
+     * The outbox re-sends anything it has no receipt for, so a message can
+     * legitimately arrive more than once. The row is stored only once, but the
+     * sender still needs an acknowledgement each time: otherwise a receipt lost on
+     * the way back would make the sender retry for the whole retry window.
+     */
+    val duplicates = MutableSharedFlow<Envelope>(
+        extraBufferCapacity = 128,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
     /** Attachment chunks routed up from the transports. */
     val chunkReceived = MutableSharedFlow<InboundChunk>(
         extraBufferCapacity = 128,
@@ -91,8 +104,19 @@ class MeshEngine(
         val fromNodeId: String,
     )
 
+    /**
+     * Whether this device forwards frames it cannot read for rooms it holds.
+     *
+     * Kept separate from [publicRelayEnabled] on purpose: forwarding is what
+     * extends a group beyond radio range, and it must not switch off as a side
+     * effect of changing how this device reaches the internet.
+     */
     @Volatile
-    var relayEnabled: Boolean = true
+    var forwardingEnabled: Boolean = true
+
+    /** Whether this device reaches peers at a distance through the public broker. */
+    @Volatile
+    var publicRelayEnabled: Boolean = false
 
     /** True when the public relay is switched on and a broker session is up. */
     @Volatile
@@ -150,13 +174,13 @@ class MeshEngine(
         }
         // Drop endpoints belonging to rooms we no longer hold.
         nearbyEndpointsByRoom.keys.retainAll(rooms.keys)
-        if (relayEnabled) publishRelayTopics()
+        if (publicRelayEnabled) publishRelayTopics()
         refreshDiagnostics()
     }
 
     /** Turns the public relay on or off and starts or stops the broker session. */
     fun setPublicRelay(value: Boolean) {
-        relayEnabled = value
+        publicRelayEnabled = value
         if (!started) return
         if (value) {
             publishRelayTopics()
@@ -215,7 +239,7 @@ class MeshEngine(
                 nearby.discover(ids)
             }
         }
-        if (relayEnabled) {
+        if (publicRelayEnabled) {
             publishRelayTopics()
             relay.start()
         }
@@ -297,7 +321,7 @@ class MeshEngine(
             // reported as delivered to a broker that is not listening. The live
             // state is read rather than the cached [relayActive], which is only
             // refreshed on events and would still read false just after connect.
-            if (relayEnabled && relay.connected && excludeNodeId == null) {
+            if (publicRelayEnabled && relay.connected && excludeNodeId == null) {
                 scope.launch {
                     if (relay.send(roomIdHex, frame)) framesSent.incrementAndGet()
                 }
@@ -517,6 +541,10 @@ class MeshEngine(
                             transport = transport,
                         ),
                     )
+                } else {
+                    // Already handled: do not store it twice, but let the caller
+                    // acknowledge it again so the sender can stop retrying.
+                    duplicates.tryEmit(envelope)
                 }
                 maybeRelay(frame, envelope, roomIdHex, excludeNodeId = sender)
             }
@@ -537,7 +565,7 @@ class MeshEngine(
         roomIdHex: String,
         excludeNodeId: String?,
     ) {
-        if (!relayEnabled) return
+        if (!forwardingEnabled) return
         if (!rooms.containsKey(roomIdHex)) return
 
         val hops = when (envelope) {
@@ -638,13 +666,13 @@ class MeshEngine(
     }
 
     private fun refreshDiagnostics() {
-        relayActive = relayEnabled && relay.connected
+        relayActive = publicRelayEnabled && relay.connected
         diagnostics = MeshDiagnostics(
             lanPort = lanPort,
             lanActive = lanEnabled && lanServer.port != 0,
             nearbyActive = nearbyEnabled,
             relayActive = relayActive,
-            relayError = if (relayEnabled) relay.lastError else null,
+            relayError = if (publicRelayEnabled) relay.lastError else null,
             connectedPeers = links.size,
             roomsAdvertised = rooms.values.count { !it.expired },
             framesSent = framesSent.get(),
@@ -655,6 +683,18 @@ class MeshEngine(
     }
 
     fun connectedNodeIds(): Set<String> = links.nodeIds()
+
+    /** Whether anything is reachable at all, so the outbox can skip a dead queue. */
+    fun hasReachablePeer(): Boolean =
+        links.size > 0 || nearbyEndpointsByRoom.values.any { it.isNotEmpty() } ||
+            (publicRelayEnabled && relay.connected)
+
+    /** Whether one specific room has anywhere to send right now. */
+    fun hasReachablePeerIn(roomIdHex: String): Boolean {
+        if (publicRelayEnabled && relay.connected && rooms.containsKey(roomIdHex)) return true
+        if (links.all().any { (nodeId, _) -> peers[nodeId]?.roomIdHex == roomIdHex }) return true
+        return nearbyEndpointsByRoom[roomIdHex]?.isNotEmpty() == true
+    }
 
     fun peerInfo(nodeId: String): PeerInfo? = peers[nodeId]
 

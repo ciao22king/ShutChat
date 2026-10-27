@@ -33,7 +33,7 @@ data class SettingsUiState(
     val lanDiscovery: Boolean = true,
     val nearbyDiscovery: Boolean = true,
     val relayEnabled: Boolean = true,
-    val publicRelay: Boolean = false,
+    val publicRelay: Boolean = true,
     val diagnostics: MeshDiagnostics = MeshDiagnostics(),
     val chatCount: Int = 0,
     val messageCount: Int = 0,
@@ -210,7 +210,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setRelayEnabled(value: Boolean) {
         viewModelScope.launch {
             settings.setRelayEnabled(value)
-            container.mesh.relayEnabled = value
+            container.mesh.forwardingEnabled = value
         }
     }
 

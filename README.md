@@ -33,9 +33,9 @@ Transport is chosen at runtime:
 - **LAN** — UDP multicast to find peers on the same network, TCP for the data.
 - **Nearby Connections** — Bluetooth and Wi-Fi Direct, for devices that are close
   but not on a shared network.
-- **Public relay** — MQTT over TLS, for devices on different networks. Off by
-  default and never enabled on its own, because it is the one path that leaves
-  the local network. The broker relays sealed frames on a topic derived from the
+- **Public relay** — MQTT over TLS, for devices on different networks. On by
+  default, because a messenger that only works on one network is not one; it can
+  be switched off from settings. The broker relays sealed frames on a topic derived from the
   invite secret, so it sees neither the message nor who is talking; it cannot
   read a frame any more than a LAN peer could.
 
@@ -51,7 +51,8 @@ with no push server a message can only arrive if something is awake to receive i
 - Direct and group chats, both created from a single code
 - Photos, audio and files, transferred in chunks with progress
 - Replies, edits, deletes, emoji reactions
-- Read receipts and typing indicators
+- Read receipts and typing indicators, sent as explicit envelopes
+- A retry queue: a message for an offline peer is re-sent until it is acknowledged
 - Online/offline presence per member
 - Message search, pin, mute, archive, drafts
 - QR code sharing for an invite

@@ -143,6 +143,29 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE status IN (0, 1, 2) AND outgoing = 1 ORDER BY created_at ASC")
     suspend fun pendingOutgoing(): List<MessageEntity>
 
+    /** Outgoing messages no receipt has arrived for, oldest first. */
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE outgoing = 1 AND deleted = 0 AND status IN (0, 1, 2)
+        ORDER BY created_at ASC
+        """,
+    )
+    suspend fun undeliveredOutgoing(): List<MessageEntity>
+
+    @Query("SELECT status FROM messages WHERE id = :id")
+    suspend fun statusOf(id: String): Int?
+
+    /** Recent incoming ids, for a read receipt that names them. */
+    @Query(
+        """
+        SELECT id FROM messages
+        WHERE chat_id = :chatId AND outgoing = 0 AND deleted = 0
+        ORDER BY created_at DESC LIMIT :limit
+        """,
+    )
+    suspend fun recentIncomingIds(chatId: String, limit: Int): List<String>
+
     @Query("SELECT MAX(created_at) FROM messages WHERE chat_id = :chatId")
     suspend fun latestTimestamp(chatId: String): Long?
 
