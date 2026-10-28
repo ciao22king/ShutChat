@@ -446,6 +446,18 @@ private fun UpdateRow(
                     .padding(top = 6.dp)
                     .clickable { openUrl(updateState.url) },
             )
+            // Android refuses to update an app whose new APK is signed with a different
+            // key, and it reports that only as "App non installata", which reads like a
+            // corrupt download. Anyone coming from a build made before the signing key
+            // was pinned will hit exactly that, so say what to do about it.
+            Text(
+                text = "Se l'installazione dice \"App non installata\", disinstalla ShutChat e " +
+                    "reinstalla: le versioni molto vecchie erano firmate con un'altra chiave. " +
+                    "I messaggi restano sul telefono finché non disinstalli.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
     }
 }

@@ -1,3 +1,8 @@
+// `java.util.Properties` cannot be referenced by its full name inside the
+// `android {}` block: `java` resolves to the Java plugin extension there, not the
+// package. Importing the class sidesteps the shadowing.
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -14,11 +19,31 @@ android {
         applicationId = "dev.shutchat.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3.0"
+        versionCode = 5
+        versionName = "1.3.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+    }
+
+    signingConfigs {
+        // Release signing. The key lives outside the repository (see
+        // `keys/keystore.properties`, git-ignored) because this repository is public.
+        //
+        // This must be a stable key, not the debug one: the debug keystore is generated
+        // per machine, so every build environment produced a different certificate and
+        // Android refused the update with "App non installata perche' in conflitto con un
+        // pacchetto". Pinning one key means every future release upgrades in place.
+        create("release") {
+            val propsFile = rootProject.file("keys/keystore.properties")
+            if (propsFile.exists()) {
+                val props = Properties().apply { propsFile.inputStream().use { load(it) } }
+                storeFile = rootProject.file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -33,9 +58,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Sideloadable release build: signed with a checked-in debug-style key so
-            // the APK installs on any device without a Play account.
-            signingConfig = signingConfigs.getByName("debug")
+            // Sideloadable release build. Uses the pinned release key when it is
+            // present; without it (a fresh checkout with no keys/ directory) it falls
+            // back to the debug key so the project still builds, but that APK will not
+            // upgrade an installed one — see the signingConfigs block above.
+            signingConfig = if (rootProject.file("keys/keystore.properties").exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
