@@ -228,9 +228,28 @@ class ChatFactory(
         return code
     }
 
-    /** Deletes a chat and everything in it. */
-    suspend fun deleteChat(chatId: String) {
-        db.messageDao().deleteForChat(chatId)
-        db.chatDao().delete(chatId)
+    /**
+     * Deletes a chat and everything in it.
+     *
+     * Works for every chat, including one whose code never expires: the invite
+     * having no deadline says how long the *room* stays reachable, not that the
+     * conversation is pinned to this device forever. A user who wants a chat gone
+     * gets it gone either way.
+     *
+     * @return the local files that belonged to the chat. They are returned rather
+     *         than deleted here so this class keeps no dependency on Android
+     *         storage, and the caller can remove them after the rows are gone.
+     */
+    suspend fun deleteChat(chatId: String): List<String> {
+        val orphans = db.messageDao().localPathsForChat(chatId)
+        db.transactionDao().deleteChatCascade(
+            chatId = chatId,
+            messageDao = db.messageDao(),
+            attachmentDao = db.attachmentDao(),
+            reactionDao = db.reactionDao(),
+            memberDao = db.memberDao(),
+            chatDao = db.chatDao(),
+        )
+        return orphans
     }
 }

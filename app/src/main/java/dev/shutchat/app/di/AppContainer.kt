@@ -146,6 +146,44 @@ class AppContainer(private val context: Context) {
         mesh.setRooms(chatFactory.activeRoomSpecs())
     }
 
+    /**
+     * Deletes a chat and everything in it.
+     *
+     * The order matters. The leave notice goes out while the room is still in the
+     * mesh, because once [refreshRooms] runs this device no longer holds the room
+     * and cannot address it. Then the rows go, then the files: files are deleted
+     * last so a crash midway leaves rows pointing at files that still exist, which
+     * the next delete can clean up, rather than files nothing references.
+     */
+    suspend fun deleteChat(chatId: String) {
+        val chat = chatRepository.chatEntity(chatId)
+
+        if (chat != null) {
+            runCatching {
+                broadcastEnvelope(
+                    dev.shutchat.app.p2p.protocol.LeaveNotice(
+                        roomId = chat.roomId,
+                        chatId = chatId,
+                        nodeId = settings.nodeId(),
+                    ),
+                )
+            }.onFailure { Log.w("AppContainer", "avviso di uscita non inviato", it) }
+        }
+
+        val orphans = runCatching { chatFactory.deleteChat(chatId) }
+            .onFailure { Log.e("AppContainer", "cancellazione chat fallita", it) }
+            .getOrDefault(emptyList())
+
+        // A deleted chat's messages must not be re-sent by the outbox, and its
+        // file bytes must not stay in private storage where nothing can reach them.
+        runCatching { outbox.flush() }
+        orphans.forEach { path ->
+            runCatching { java.io.File(path).delete() }
+        }
+
+        refreshRooms()
+    }
+
     suspend fun sendText(chatId: String, text: String) {
         val chat = chatRepository.chatEntity(chatId) ?: return
         val nodeId = settings.nodeId()

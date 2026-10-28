@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,15 +13,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -57,6 +62,10 @@ fun MessageBubble(
     isLastInGroup: Boolean,
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
+    audioPlaying: Boolean = false,
+    audioPositionMillis: Long = 0L,
+    audioDurationMillis: Long = 0L,
+    onAudioToggle: (() -> Unit)? = null,
 ) {
     val chatColors = LocalChatColors.current
     val outgoing = message.isOutgoing
@@ -99,7 +108,14 @@ fun MessageBubble(
                 when (message.kind) {
                     MessageKind.IMAGE -> MediaBody(message = message, textColor = textColor)
                     MessageKind.FILE -> FileBody(message = message, textColor = textColor)
-                    MessageKind.AUDIO -> AudioBody(message = message, textColor = textColor)
+                    MessageKind.AUDIO -> AudioBody(
+                        message = message,
+                        textColor = textColor,
+                        playing = audioPlaying,
+                        positionMillis = audioPositionMillis,
+                        durationMillis = audioDurationMillis,
+                        onToggle = onAudioToggle,
+                    )
                     MessageKind.SYSTEM -> Text(
                         text = message.body,
                         style = MaterialTheme.typography.bodySmall,
@@ -222,29 +238,92 @@ private fun FileBody(message: Message, textColor: Color) {
     }
 }
 
+/**
+ * A voice note: play button, progress, duration.
+ *
+ * The bar is drawn from the same [LinearProgressIndicator] the transfer uses, so
+ * a note still arriving and a note being played read as the same kind of waiting
+ * rather than two unrelated widgets.
+ */
 @Composable
-private fun AudioBody(message: Message, textColor: Color) {
+private fun AudioBody(
+    message: Message,
+    textColor: Color,
+    playing: Boolean,
+    positionMillis: Long,
+    durationMillis: Long,
+    onToggle: (() -> Unit)?,
+) {
     val attachment = message.attachment
-    Column {
-        Text(
-            text = "🎤 Messaggio vocale",
-            style = MaterialTheme.typography.bodyMedium,
-            color = textColor,
-        )
-        attachment?.durationMillis?.let { duration ->
-            Text(
-                text = Format.duration(duration),
-                style = MaterialTheme.typography.bodySmall,
-                color = textColor.copy(alpha = 0.7f),
+    val ready = attachment?.localPath != null
+
+    // The stored duration is what the sender measured while recording, so it is
+    // available before the file arrives and can label a note still in flight.
+    val knownDuration = when {
+        durationMillis > 0L -> durationMillis
+        attachment?.durationMillis != null -> attachment.durationMillis
+        else -> 0L
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.widthIn(min = 180.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(textColor.copy(alpha = if (ready) 0.18f else 0.08f))
+                .clickable(enabled = ready && onToggle != null) { onToggle?.invoke() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = if (playing) "Metti in pausa" else "Riproduci",
+                tint = textColor.copy(alpha = if (ready) 1f else 0.45f),
+                modifier = Modifier.size(21.dp),
             )
         }
-        if (attachment?.localPath == null) {
-            Spacer(Modifier.size(6.dp))
-            TransferProgress(
-                progress = attachment?.progress ?: 0f,
-                label = "In arrivo",
-                textColor = textColor,
-            )
+
+        Spacer(Modifier.width(10.dp))
+
+        Column(modifier = Modifier.weight(1f, fill = false)) {
+            if (!ready) {
+                TransferProgress(
+                    progress = attachment?.progress ?: 0f,
+                    label = "Vocale in arrivo",
+                    textColor = textColor,
+                )
+            } else {
+                LinearProgressIndicator(
+                    progress = {
+                        if (knownDuration <= 0L) 0f
+                        else (positionMillis.toFloat() / knownDuration).coerceIn(0f, 1f)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = textColor,
+                    trackColor = textColor.copy(alpha = 0.25f),
+                )
+                Spacer(Modifier.size(5.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = Format.duration(if (playing) positionMillis else knownDuration),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = textColor.copy(alpha = 0.85f),
+                    )
+                    if (knownDuration > 0L) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "· ${Format.duration(knownDuration)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textColor.copy(alpha = 0.55f),
+                        )
+                    }
+                }
+            }
         }
     }
 }

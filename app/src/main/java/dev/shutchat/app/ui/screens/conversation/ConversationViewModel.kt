@@ -15,6 +15,7 @@ import dev.shutchat.app.domain.model.Message
 import dev.shutchat.app.domain.model.MessageKind
 import dev.shutchat.app.domain.model.MessageStatus
 import dev.shutchat.app.media.MediaStore
+import dev.shutchat.app.media.VoiceRecorder
 import dev.shutchat.app.p2p.protocol.Receipt
 import dev.shutchat.app.p2p.protocol.Typing
 import dev.shutchat.app.p2p.protocol.WireAttachment
@@ -234,6 +235,11 @@ class ConversationViewModel(
         error.value = null
     }
 
+    /** Surfaces a message from the screen, e.g. a permission the user refused. */
+    fun reportError(message: String) {
+        error.value = message
+    }
+
     /** Regenerates an expired code so the room becomes reachable again. */
     fun rotateCode(preset: dev.shutchat.app.domain.expiry.Expiry.Preset) {
         viewModelScope.launch {
@@ -251,72 +257,122 @@ class ConversationViewModel(
      */
     fun sendAttachment(picked: MediaStore.PickedFile, kind: MessageKind) {
         viewModelScope.launch {
-            val room = roomIdOf() ?: return@launch
-            val messageId = Ids.newId()
             val attachmentId = Ids.newId()
             val staged = container.mediaStore.stageForSending(attachmentId, picked)
             if (staged == null) {
                 error.value = "Impossibile leggere il file scelto"
                 return@launch
             }
-            val outgoing = Message(
-                id = messageId,
-                chatId = chatId,
-                senderNodeId = container.settings.nodeId(),
-                senderName = container.settings.currentDisplayName(),
-                kind = kind,
-                body = "",
-                createdAt = container.clock.nowMillis(),
-                status = MessageStatus.SENDING,
-                attachment = dev.shutchat.app.domain.model.Attachment(
-                    id = attachmentId,
-                    messageId = messageId,
-                    fileName = picked.fileName,
-                    mimeType = picked.mimeType,
-                    sizeBytes = picked.sizeBytes,
-                    localPath = staged.absolutePath,
-                    progress = 1f,
-                ),
-                outgoing = true,
-            )
-            messages.storeOutgoing(outgoing)
-            messages.storeAttachment(outgoing.attachment!!)
-
-            val envelope = WireMessage(
-                roomId = room,
-                messageId = messageId,
-                chatId = chatId,
-                senderNodeId = outgoing.senderNodeId,
-                senderName = outgoing.senderName,
-                kind = kind.name,
-                body = "",
-                createdAt = outgoing.createdAt,
-                attachment = WireAttachment(
-                    id = attachmentId,
-                    fileName = picked.fileName,
-                    mimeType = picked.mimeType,
-                    sizeBytes = picked.sizeBytes,
-                ),
-            )
-            val handedTo = container.broadcastEnvelope(envelope)
-            messages.setStatus(listOf(messageId), RetryPolicy.afterHandoff(handedTo))
-            if (handedTo == 0) {
-                error.value = "Nessun peer raggiungibile: il file resta in attesa"
-                return@launch
-            }
-            val sent = container.transfer.send(
-                roomIdHex = room,
-                transferId = Ids.randomBytes(16),
-                attachmentId = attachmentId,
-                messageId = messageId,
+            deliverFile(
                 file = staged,
                 fileName = picked.fileName,
                 mimeType = picked.mimeType,
+                sizeBytes = picked.sizeBytes,
+                kind = kind,
+                durationMillis = null,
             )
-            if (!sent) {
-                messages.setStatus(listOf(messageId), MessageStatus.QUEUED)
-                error.value = "Trasferimento interrotto: riprenderà quando un peer torna online"
-            }
+        }
+    }
+
+    /**
+     * Sends a voice note.
+     *
+     * Unlike a picked photo the file is already in place, written by the recorder
+     * into the app's own storage, so it is handed to the transfer layer as it is
+     * rather than staged into the cache first.
+     */
+    fun sendVoiceNote(recording: VoiceRecorder.Recording) {
+        viewModelScope.launch {
+            deliverFile(
+                file = recording.file,
+                fileName = recording.file.name,
+                mimeType = VOICE_MIME,
+                sizeBytes = recording.file.length(),
+                kind = MessageKind.AUDIO,
+                durationMillis = recording.durationMillis,
+            )
+        }
+    }
+
+    /**
+     * Writes the message row, announces it, then pushes the bytes.
+     *
+     * Shared by every attachment kind. The row lands first so the bubble appears
+     * immediately with its progress bar; the transfer then fills in the file. A
+     * voice note travels exactly the same path as a photo, which is why recording
+     * one needed no new transport work.
+     */
+    private suspend fun deliverFile(
+        file: java.io.File,
+        fileName: String,
+        mimeType: String,
+        sizeBytes: Long,
+        kind: MessageKind,
+        durationMillis: Long?,
+    ) {
+        val room = roomIdOf() ?: return
+        val messageId = Ids.newId()
+        val attachmentId = Ids.newId()
+
+        val outgoing = Message(
+            id = messageId,
+            chatId = chatId,
+            senderNodeId = container.settings.nodeId(),
+            senderName = container.settings.currentDisplayName(),
+            kind = kind,
+            body = "",
+            createdAt = container.clock.nowMillis(),
+            status = MessageStatus.SENDING,
+            attachment = dev.shutchat.app.domain.model.Attachment(
+                id = attachmentId,
+                messageId = messageId,
+                fileName = fileName,
+                mimeType = mimeType,
+                sizeBytes = sizeBytes,
+                localPath = file.absolutePath,
+                progress = 1f,
+                durationMillis = durationMillis,
+            ),
+            outgoing = true,
+        )
+        messages.storeOutgoing(outgoing)
+        messages.storeAttachment(outgoing.attachment!!)
+
+        val envelope = WireMessage(
+            roomId = room,
+            messageId = messageId,
+            chatId = chatId,
+            senderNodeId = outgoing.senderNodeId,
+            senderName = outgoing.senderName,
+            kind = kind.name,
+            body = "",
+            createdAt = outgoing.createdAt,
+            attachment = WireAttachment(
+                id = attachmentId,
+                fileName = fileName,
+                mimeType = mimeType,
+                sizeBytes = sizeBytes,
+                durationMillis = durationMillis,
+            ),
+        )
+        val handedTo = container.broadcastEnvelope(envelope)
+        messages.setStatus(listOf(messageId), RetryPolicy.afterHandoff(handedTo))
+        if (handedTo == 0) {
+            error.value = "Nessun peer raggiungibile: il file resta in attesa"
+            return
+        }
+        val sent = container.transfer.send(
+            roomIdHex = room,
+            transferId = Ids.randomBytes(16),
+            attachmentId = attachmentId,
+            messageId = messageId,
+            file = file,
+            fileName = fileName,
+            mimeType = mimeType,
+        )
+        if (!sent) {
+            messages.setStatus(listOf(messageId), MessageStatus.QUEUED)
+            error.value = "Trasferimento interrotto: riprenderà quando un peer torna online"
         }
     }
 
@@ -391,5 +447,8 @@ class ConversationViewModel(
     private companion object {
         const val TYPING_THROTTLE_MILLIS = 2_000L
         const val TYPING_RESET_MILLIS = 4_000L
+
+        /** AAC in an MP4 container, matching what the recorder writes. */
+        const val VOICE_MIME = "audio/mp4"
     }
 }

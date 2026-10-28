@@ -26,6 +26,8 @@ abstract class ShutChatDatabase : RoomDatabase() {
     abstract fun reactionDao(): ReactionDao
     abstract fun peerDao(): PeerDao
 
+    abstract fun transactionDao(): TransactionDao
+
     companion object {
         private const val NAME = "shutchat.db"
 

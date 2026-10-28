@@ -90,10 +90,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun delete(chatId: String) {
-        viewModelScope.launch {
-            container.chatFactory.deleteChat(chatId)
-            container.refreshRooms()
-        }
+        viewModelScope.launch { container.deleteChat(chatId) }
     }
 
     fun markOnboardingDone() {

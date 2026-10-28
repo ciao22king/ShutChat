@@ -35,6 +35,25 @@ class MediaStore(private val context: Context) {
     fun thumbsDir(): File =
         File(context.filesDir, "attachments/thumbs").apply { mkdirs() }
 
+    /**
+     * Where recordings are written.
+     *
+     * Under `filesDir`, not the cache, because unlike a picked photo a recording
+     * exists nowhere else: if the cache were trimmed the voice note would be
+     * gone for good, and the bubble would play silence.
+     */
+    fun voiceDir(): File =
+        File(context.filesDir, "attachments/voice").apply { mkdirs() }
+
+    /**
+     * A fresh path for a recording.
+     *
+     * Named from the clock rather than from an id because `MediaRecorder` needs
+     * the path before the message exists, so the name is chosen up front and kept.
+     */
+    fun newVoiceFile(): File =
+        File(voiceDir(), "voice-${System.currentTimeMillis()}.m4a")
+
     /** Destination for a file identified by attachment id and original name. */
     fun destinationFor(attachmentId: String, fileName: String): File =
         File(incomingDir(), "$attachmentId-${sanitize(fileName)}")

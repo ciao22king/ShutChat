@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -43,6 +45,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -54,6 +57,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -69,10 +74,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
+import dev.shutchat.app.core.Format
 import dev.shutchat.app.domain.expiry.Expiry
 import dev.shutchat.app.domain.model.ChatStatus
 import dev.shutchat.app.domain.model.Message
 import dev.shutchat.app.domain.model.MessageKind
+import dev.shutchat.app.media.VoicePlayer
+import dev.shutchat.app.media.VoiceRecorder
 import dev.shutchat.app.ui.component.ExpiredCodeBanner
 import dev.shutchat.app.ui.component.GroupInviteHint
 import dev.shutchat.app.ui.component.InitialsAvatar
@@ -107,6 +116,68 @@ fun ConversationScreen(
     var actionTarget by remember { mutableStateOf<Message?>(null) }
     var confirmDelete by remember { mutableStateOf<Message?>(null) }
     var attachMenu by remember { mutableStateOf(false) }
+
+    val recorder = remember { VoiceRecorder(context, viewModel.mediaStore) }
+    val player = remember { VoicePlayer() }
+    var recording by remember { mutableStateOf(false) }
+    var recordingMillis by remember { mutableStateOf(0L) }
+    var pendingVoice by remember { mutableStateOf<VoiceRecorder.Recording?>(null) }
+    var playingId by remember { mutableStateOf<String?>(null) }
+    var playingPosition by remember { mutableStateOf(0L) }
+    var playingDuration by remember { mutableStateOf(0L) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            // Leaving mid-recording must not leave the microphone open, and must not
+            // leave a half file behind for the transfer layer to trip over.
+            recorder.cancel()
+            player.stop()
+        }
+    }
+
+    // Ticks the elapsed counter and the level meter while the microphone is open.
+    // Polling rather than a callback because MediaRecorder only exposes amplitude
+    // as a getter, and the same loop is what keeps the on-screen timer honest.
+    LaunchedEffect(recording) {
+        while (recording) {
+            recordingMillis = recorder.elapsedMillis()
+            delay(100)
+        }
+    }
+
+    // Drives the playhead. Cancelled with the effect, so a stopped note stops
+    // being polled instead of leaving a coroutine per bubble.
+    LaunchedEffect(playingId) {
+        while (playingId != null) {
+            val (position, duration) = player.position()
+            playingPosition = position
+            if (duration > 0L) playingDuration = duration
+            delay(120)
+        }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (!granted) {
+            viewModel.reportError("Serve il permesso del microfono per registrare un vocale")
+        }
+    }
+
+    // Shared by the microphone button's release handler and by the preview's
+    // discard path, so finishing a recording behaves identically wherever it ends.
+    val finishRecording = {
+        if (recording) {
+            val finished = recorder.stop()
+            recording = false
+            recordingMillis = 0L
+            if (finished == null) {
+                viewModel.reportError("Registrazione troppo breve")
+            } else {
+                pendingVoice = finished
+            }
+        }
+    }
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia(),
@@ -241,6 +312,33 @@ fun ConversationScreen(
                                 isFirstInGroup = previous?.senderNodeId != message.senderNodeId,
                                 isLastInGroup = next?.senderNodeId != message.senderNodeId,
                                 onLongPress = { actionTarget = message },
+                                audioPlaying = playingId == message.id,
+                                audioPositionMillis = if (playingId == message.id) playingPosition else 0L,
+                                audioDurationMillis = if (playingId == message.id) playingDuration else 0L,
+                                onAudioToggle = {
+                                    val path = message.attachment?.localPath
+                                    if (path == null) {
+                                        viewModel.reportError("Il vocale non è ancora arrivato")
+                                    } else if (playingId == message.id) {
+                                        player.stop()
+                                        playingId = null
+                                    } else {
+                                        val started = player.play(
+                                            messageId = message.id,
+                                            file = java.io.File(path),
+                                            onProgress = { position, duration ->
+                                                playingPosition = position
+                                                if (duration > 0L) playingDuration = duration
+                                            },
+                                            onFinished = {
+                                                playingId = null
+                                                playingPosition = 0L
+                                            },
+                                        )
+                                        playingId = if (started) message.id else null
+                                        if (!started) viewModel.reportError("Impossibile riprodurre il vocale")
+                                    }
+                                },
                             )
                         }
                     }
@@ -264,6 +362,28 @@ fun ConversationScreen(
                     label = "Modifica messaggio",
                     preview = target.body,
                     onCancel = viewModel::cancelComposeMode,
+                )
+            }
+
+            if (recording) {
+                RecordingBar(
+                    elapsedMillis = recordingMillis,
+                    amplitude = recorder.amplitude(),
+                )
+            }
+
+            pendingVoice?.let { voice ->
+                VoicePreviewBar(
+                    durationMillis = voice.durationMillis,
+                    sizeLabel = viewModel.mediaStore.readableSize(voice.file.length()),
+                    onDiscard = {
+                        viewModel.mediaStore.delete(voice.file)
+                        pendingVoice = null
+                    },
+                    onSend = {
+                        viewModel.sendVoiceNote(voice)
+                        pendingVoice = null
+                    },
                 )
             }
 
@@ -294,6 +414,21 @@ fun ConversationScreen(
                 onAttachFile = { filePicker.launch("*/*") },
                 attachMenu = attachMenu,
                 onAttachMenuChange = { attachMenu = it },
+                onRecordStart = {
+                    when {
+                        recording -> Unit
+                        !hasPermission(context, Manifest.permission.RECORD_AUDIO) ->
+                            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+
+                        recorder.start() -> {
+                            recording = true
+                            recordingMillis = 0L
+                        }
+
+                        else -> viewModel.reportError("Microfono non disponibile")
+                    }
+                },
+                onRecordStop = { finishRecording() },
             )
         }
     }
@@ -420,6 +555,8 @@ private fun Composer(
     onAttachFile: () -> Unit,
     attachMenu: Boolean,
     onAttachMenuChange: (Boolean) -> Unit,
+    onRecordStart: () -> Unit,
+    onRecordStop: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -482,6 +619,10 @@ private fun Composer(
         )
 
         val canSend = enabled && value.isNotBlank()
+
+        // One button, two meanings: with text typed it sends, otherwise it records
+        // for as long as it is held. A separate microphone button would waste the
+        // most reachable spot on screen for something a long press already covers.
         Box(
             modifier = Modifier
                 .padding(start = 4.dp, bottom = 4.dp)
@@ -494,12 +635,29 @@ private fun Composer(
                         MaterialTheme.colorScheme.surfaceVariant
                     },
                 )
-                .clickable(enabled = canSend, onClick = onSend),
+                .then(
+                    if (canSend) {
+                        Modifier.clickable(enabled = enabled, onClick = onSend)
+                    } else {
+                        Modifier.pointerInput(enabled) {
+                            if (!enabled) return@pointerInput
+                            detectTapGestures(
+                                onPress = {
+                                    onRecordStart()
+                                    // Suspends until the finger lifts, so the
+                                    // recording lasts exactly as long as the press.
+                                    tryAwaitRelease()
+                                    onRecordStop()
+                                },
+                            )
+                        }
+                    },
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                Icons.AutoMirrored.Filled.Send,
-                contentDescription = "Invia",
+                imageVector = if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Default.Mic,
+                contentDescription = if (canSend) "Invia" else "Tieni premuto per registrare",
                 tint = if (canSend) {
                     MaterialTheme.colorScheme.onPrimary
                 } else {
@@ -508,6 +666,122 @@ private fun Composer(
                 modifier = Modifier.size(20.dp),
             )
         }
+    }
+}
+
+/**
+ * The bar shown while the microphone is open.
+ *
+ * Informational only: the gesture that opened the microphone is a press that is
+ * still being held, so nothing on screen can be tapped at this point. Cancelling
+ * lives in the preview bar that follows, where a finger is free again.
+ *
+ * The meter is driven by the peak amplitude rather than a decoded waveform: one
+ * reading per frame is enough to show that the microphone is live, and decoding
+ * samples would compete with the encoder for the audio device.
+ */
+@Composable
+private fun RecordingBar(
+    elapsedMillis: Long,
+    amplitude: Int,
+) {
+    val level = (amplitude / 32_767f).coerceIn(0f, 1f)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.error),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = Format.duration(elapsedMillis),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Spacer(Modifier.width(12.dp))
+        LinearProgressIndicator(
+            progress = { level },
+            modifier = Modifier
+                .weight(1f)
+                .height(5.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = MaterialTheme.colorScheme.error,
+            trackColor = MaterialTheme.colorScheme.error.copy(alpha = 0.2f),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = "Rilascia per inviare",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * Preview shown after recording, before the note is sent.
+ *
+ * A voice note cannot be edited, so the last chance to notice a mistake is here:
+ * discarding deletes the file and leaves nothing behind.
+ */
+@Composable
+private fun VoicePreviewBar(
+    durationMillis: Long,
+    sizeLabel: String,
+    onDiscard: () -> Unit,
+    onSend: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Mic,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Vocale pronto",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = "${Format.duration(durationMillis)} · $sizeLabel",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = "Elimina",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onDiscard)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = "Invia",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onSend)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
     }
 }
 

@@ -109,6 +109,16 @@ interface MemberDao {
 
     @Query("DELETE FROM members WHERE chat_id = :chatId AND node_id = :nodeId")
     suspend fun delete(chatId: String, nodeId: String)
+
+    /**
+     * Empties a chat's roster.
+     *
+     * The foreign key already cascades, but the cascade only fires when the chat
+     * row goes, and doing it explicitly keeps the delete order independent of
+     * whether foreign keys happen to be enabled on the connection.
+     */
+    @Query("DELETE FROM members WHERE chat_id = :chatId")
+    suspend fun deleteForChat(chatId: String)
 }
 
 @Dao
@@ -190,6 +200,21 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE chat_id = :chatId")
     suspend fun deleteForChat(chatId: String)
 
+    /**
+     * Every local file a chat's attachments point at.
+     *
+     * Read before the rows are dropped, because once they are gone there is no
+     * way left to find the files and they would sit in private storage forever.
+     */
+    @Query(
+        """
+        SELECT local_path FROM attachments
+        WHERE local_path IS NOT NULL
+          AND message_id IN (SELECT id FROM messages WHERE chat_id = :chatId)
+        """,
+    )
+    suspend fun localPathsForChat(chatId: String): List<String>
+
     @Query("DELETE FROM messages WHERE created_at < :before AND chat_id IN (SELECT id FROM chats WHERE status = 0)")
     suspend fun purgeOlderThan(before: Long): Int
 
@@ -217,6 +242,16 @@ interface AttachmentDao {
 
     @Query("UPDATE attachments SET local_path = :path, progress = 1.0 WHERE id = :id")
     suspend fun setLocalPath(id: String, path: String)
+
+    /**
+     * Drops attachment rows belonging to a chat.
+     *
+     * Needed because `attachments` carries no foreign key to `messages`, so
+     * nothing removes these rows when the messages go. Without this a deleted
+     * chat leaves rows pointing at files that no longer exist.
+     */
+    @Query("DELETE FROM attachments WHERE message_id IN (SELECT id FROM messages WHERE chat_id = :chatId)")
+    suspend fun deleteForChat(chatId: String)
 }
 
 @Dao
@@ -233,6 +268,10 @@ interface ReactionDao {
 
     @Query("DELETE FROM reactions WHERE message_id = :messageId")
     suspend fun removeAll(messageId: String)
+
+    /** Drops reaction rows for a chat, for the same reason as attachments. */
+    @Query("DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE chat_id = :chatId)")
+    suspend fun deleteForChat(chatId: String)
 }
 
 @Dao
@@ -257,19 +296,37 @@ interface PeerDao {
     suspend fun purgeOlderThan(before: Long): Int
 }
 
-/** Groups writes that must land together, e.g. a message plus its attachment. */
+/**
+ * Groups writes that must land together.
+ *
+ * A chat delete touches four tables. Left to the repositories the deletes would be
+ * separate transactions, and a crash between them would leave a chat with no
+ * messages but with rows still pointing at it — exactly the inconsistent state the
+ * UI would then render as an empty conversation that cannot be removed.
+ */
 @Dao
 abstract class TransactionDao {
 
+    /**
+     * Removes a chat and everything that hangs off it.
+     *
+     * Attachments and reactions are deleted by hand rather than by cascade: their
+     * tables carry no foreign key, so nothing else would ever clean them up.
+     */
     @Transaction
-    open suspend fun insertMessageWithAttachment(
-        message: MessageEntity,
-        attachment: AttachmentEntity?,
+    open suspend fun deleteChatCascade(
+        chatId: String,
         messageDao: MessageDao,
         attachmentDao: AttachmentDao,
+        reactionDao: ReactionDao,
+        memberDao: MemberDao,
+        chatDao: ChatDao,
     ) {
-        messageDao.upsert(message)
-        attachment?.let { attachmentDao.upsert(it) }
+        attachmentDao.deleteForChat(chatId)
+        reactionDao.deleteForChat(chatId)
+        messageDao.deleteForChat(chatId)
+        memberDao.deleteForChat(chatId)
+        chatDao.delete(chatId)
     }
 }
 
