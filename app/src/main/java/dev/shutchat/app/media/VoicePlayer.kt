@@ -12,10 +12,11 @@ import java.io.File
  * open for every one of them. Starting a new note therefore stops the previous
  * one, which is also what a user expects when they tap a second bubble.
  *
- * The caller supplies [onProgress] and [onFinished] instead of reading state:
- * `MediaPlayer` reports position only through polling, and the tick has to stop
- * the moment playback ends, so the player owns the loop and the screen just
- * renders what it is told.
+ * The screen polls [position] for the playhead; this class only reports the length
+ * once playback starts, through [play]'s `onProgress`, and announces the end
+ * through `onFinished`. `MediaPlayer` has no position callback, so somebody has to
+ * poll, and keeping that in the screen means one ticker per screen rather than one
+ * per bubble.
  */
 class VoicePlayer {
 
@@ -46,21 +47,34 @@ class VoicePlayer {
         }
 
         return try {
-            val mediaPlayer = MediaPlayer().apply {
-                setDataSource(file.absolutePath)
-                prepare()
+            val mediaPlayer = MediaPlayer()
+
+            // prepareAsync, not prepare: this runs on the main thread from a click,
+            // and a synchronous prepare blocks the UI while the platform reads the
+            // file. The start therefore happens in onPrepared rather than here.
+            mediaPlayer.setOnPreparedListener { mp ->
+                // The user may have tapped a second note while this one prepared, in
+                // which case stop() already detached it and starting it would put two
+                // voices over each other.
+                if (player !== mp) return@setOnPreparedListener
+                mp.start()
+                onProgress(0L, mp.duration.toLong().coerceAtLeast(0L))
             }
+
+            // Attached before prepare so a very short note cannot finish in the gap
+            // between starting and wiring the listener, which would leave the
+            // playhead stuck and the bubble unplayable a second time.
+            mediaPlayer.setOnCompletionListener { mp ->
+                if (player === mp) {
+                    stop()
+                    onFinished()
+                }
+            }
+
+            mediaPlayer.setDataSource(file.absolutePath)
             player = mediaPlayer
             playingId = messageId
-            mediaPlayer.start()
-
-            val duration = mediaPlayer.duration.toLong().coerceAtLeast(0L)
-            mediaPlayer.setOnCompletionListener {
-                stop()
-                onFinished()
-            }
-            onProgress(0L, duration)
-            mediaPlayer
+            mediaPlayer.prepareAsync()
             true
         } catch (e: Exception) {
             Log.w(TAG, "riproduzione non riuscita: $messageId", e)

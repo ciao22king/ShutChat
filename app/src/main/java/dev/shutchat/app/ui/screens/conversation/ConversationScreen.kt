@@ -132,6 +132,10 @@ fun ConversationScreen(
             // leave a half file behind for the transfer layer to trip over.
             recorder.cancel()
             player.stop()
+            // A recorded note that was never sent is referenced by nothing, so
+            // leaving the screen has to take its file with it. One already handed to
+            // sendVoiceNote is owned by its message row and is left alone.
+            pendingVoice?.let { viewModel.mediaStore.delete(it.file) }
         }
     }
 

@@ -14,8 +14,9 @@ import java.io.File
  * thing that decides whether it arrives. Roughly 64 kbit/s mono is transparent
  * enough for speech and about twenty times smaller than uncompressed audio.
  *
- * The recorder writes straight into the staging directory the transfer layer
- * reads from, so sending a voice note needs no extra copy of the file.
+ * The file lands in the app's own storage, not the cache, so it survives a cache
+ * sweep while the transfer is still running, and sending it needs no extra copy:
+ * the transfer layer reads the recorded file where it already is.
  *
  * `MediaRecorder` has no "is this still running" query and no idempotent stop:
  * [stop] after a failure throws, and [stop] twice throws. Every call here is
