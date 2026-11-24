@@ -104,7 +104,7 @@ class AttachmentTransfer(
             ),
         )
         if (announced == 0) {
-            Log.d(TAG, "nessun peer raggiungibile per $attachmentId")
+            Log.d(TAG, "no reachable peer for $attachmentId")
             return false
         }
 
@@ -130,7 +130,7 @@ class AttachmentTransfer(
                 if (mesh.sendFrame(roomIdHex, frame) == 0) {
                     Log.d(TAG, "trasferimento $attachmentId interrotto al chunk $index")
                     mesh.broadcast(
-                        TransferCancel(roomIdHex, transferId.toHex(), "peer non raggiungibile"),
+                        TransferCancel(roomIdHex, transferId.toHex(), "peer unreachable"),
                     )
                     return false
                 }
@@ -166,7 +166,7 @@ class AttachmentTransfer(
                             totalBytes = envelope.totalBytes,
                             file = destination,
                         )
-                    }.onFailure { Log.w(TAG, "impossibile aprire ${destination.name}", it) }
+                    }.onFailure { Log.w(TAG, "cannot open ${destination.name}", it) }
                 }
             }
 
@@ -174,7 +174,7 @@ class AttachmentTransfer(
 
             is TransferCancel -> {
                 inbound.remove(envelope.transferId)?.close()
-                Log.d(TAG, "trasferimento annullato: ${envelope.reason}")
+                Log.d(TAG, "transfer cancelled: ${envelope.reason}")
             }
 
             else -> Unit
@@ -196,7 +196,7 @@ class AttachmentTransfer(
                     state.handle.seek(chunk.index.toLong() * Protocol.CHUNK_SIZE)
                     state.handle.write(chunk.body)
                 }
-            }.onFailure { Log.w(TAG, "scrittura chunk ${chunk.index} fallita", it) }
+            }.onFailure { Log.w(TAG, "chunk write ${chunk.index} fallita", it) }
 
             val complete = state.received.all { it }
             progress.tryEmit(

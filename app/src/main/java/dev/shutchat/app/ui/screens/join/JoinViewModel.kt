@@ -60,7 +60,7 @@ class JoinViewModel(private val container: AppContainer) : ViewModel() {
                     .describeDeadline(code.payload.expiryDay, container.clock),
             )
         } catch (e: InvalidInviteCodeException) {
-            Validation.Invalid(e.message ?: "Codice non valido")
+            Validation.Invalid(e.message ?: "Invalid code")
         }
     }
 
@@ -81,13 +81,13 @@ class JoinViewModel(private val container: AppContainer) : ViewModel() {
             } catch (e: InvalidInviteCodeException) {
                 _state.value = _state.value.copy(
                     joining = false,
-                    error = e.message ?: "Codice non valido",
-                    validation = Validation.Invalid(e.message ?: "Codice non valido"),
+                    error = e.message ?: "Invalid code",
+                    validation = Validation.Invalid(e.message ?: "Invalid code"),
                 )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     joining = false,
-                    error = e.message ?: "Non è stato possibile entrare",
+                    error = e.message ?: "Could not join",
                 )
             }
         }

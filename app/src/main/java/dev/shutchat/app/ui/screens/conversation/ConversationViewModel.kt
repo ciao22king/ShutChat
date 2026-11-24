@@ -260,7 +260,7 @@ class ConversationViewModel(
             val attachmentId = Ids.newId()
             val staged = container.mediaStore.stageForSending(attachmentId, picked)
             if (staged == null) {
-                error.value = "Impossibile leggere il file scelto"
+                error.value = "Could not read the chosen file"
                 return@launch
             }
             deliverFile(
@@ -358,7 +358,7 @@ class ConversationViewModel(
         val handedTo = container.broadcastEnvelope(envelope)
         messages.setStatus(listOf(messageId), RetryPolicy.afterHandoff(handedTo))
         if (handedTo == 0) {
-            error.value = "Nessun peer raggiungibile: il file resta in attesa"
+            error.value = "No peer reachable: the file stays queued"
             return
         }
         val sent = container.transfer.send(
@@ -372,7 +372,7 @@ class ConversationViewModel(
         )
         if (!sent) {
             messages.setStatus(listOf(messageId), MessageStatus.QUEUED)
-            error.value = "Trasferimento interrotto: riprenderà quando un peer torna online"
+            error.value = "Transfer interrupted: it resumes when a peer comes back online"
         }
     }
 
@@ -419,7 +419,7 @@ class ConversationViewModel(
         // receipt promotes it, and the outbox re-sends it until that arrives.
         messages.setStatus(listOf(message.id), RetryPolicy.afterHandoff(handedTo))
         if (handedTo == 0) {
-            error.value = "Nessun peer raggiungibile ora: il messaggio parte appena qualcuno si collega"
+            error.value = "No peer reachable now: the message leaves as soon as someone connects"
         }
         chats.touch(chatId, message.createdAt)
     }
@@ -438,8 +438,8 @@ class ConversationViewModel(
     private suspend fun roomIdOf(): String? = chats.chatEntity(chatId)?.roomId
 
     private fun previewOf(message: Message): String = when (message.kind) {
-        MessageKind.IMAGE -> "📷 Foto"
-        MessageKind.AUDIO -> "🎤 Messaggio vocale"
+        MessageKind.IMAGE -> "📷 Photo"
+        MessageKind.AUDIO -> "🎤 Voice message"
         MessageKind.FILE -> "📎 " + (message.attachment?.fileName ?: "File")
         else -> message.body.take(120)
     }

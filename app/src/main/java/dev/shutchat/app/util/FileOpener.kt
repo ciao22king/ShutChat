@@ -28,10 +28,10 @@ object FileOpener {
                 setDataAndType(uri, mimeType)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(Intent.createChooser(intent, "Apri con"))
+            context.startActivity(Intent.createChooser(intent, "Open with"))
             true
         } catch (e: Exception) {
-            Log.w(TAG, "nessuna app per $mimeType", e)
+            Log.w(TAG, "no app for $mimeType", e)
             false
         }
     }
@@ -51,7 +51,7 @@ object FileOpener {
             context.startActivity(Intent.createChooser(intent, fileName))
             true
         } catch (e: Exception) {
-            Log.w(TAG, "condivisione fallita", e)
+            Log.w(TAG, "sharing failed", e)
             false
         }
     }

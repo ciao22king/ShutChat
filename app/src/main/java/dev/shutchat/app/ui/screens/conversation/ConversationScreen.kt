@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Reply
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -62,6 +64,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,6 +79,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import dev.shutchat.app.core.Format
+import kotlinx.coroutines.launch
 import dev.shutchat.app.domain.expiry.Expiry
 import dev.shutchat.app.domain.model.ChatStatus
 import dev.shutchat.app.domain.model.Message
@@ -85,6 +89,8 @@ import dev.shutchat.app.media.VoiceRecorder
 import dev.shutchat.app.ui.component.ExpiredCodeBanner
 import dev.shutchat.app.ui.component.GroupInviteHint
 import dev.shutchat.app.ui.component.InitialsAvatar
+import dev.shutchat.app.p2p.protocol.CallMedia
+import dev.shutchat.app.ui.rememberContainer
 import dev.shutchat.app.ui.component.MessageBubble
 import dev.shutchat.app.ui.component.TypingIndicator
 import dev.shutchat.app.ui.containerViewModel
@@ -111,6 +117,8 @@ fun ConversationScreen(
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val container = rememberContainer()
+    val callScope = rememberCoroutineScope()
 
     var composer by remember { mutableStateOf("") }
     var actionTarget by remember { mutableStateOf<Message?>(null) }
@@ -164,7 +172,7 @@ fun ConversationScreen(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (!granted) {
-            viewModel.reportError("Serve il permesso del microfono per registrare un vocale")
+            viewModel.reportError("Microphone permission is needed to record a voice message")
         }
     }
 
@@ -176,7 +184,7 @@ fun ConversationScreen(
             recording = false
             recordingMillis = 0L
             if (finished == null) {
-                viewModel.reportError("Registrazione troppo breve")
+                viewModel.reportError("Recording too short")
             } else {
                 pendingVoice = finished
             }
@@ -238,7 +246,7 @@ fun ConversationScreen(
                                     }
                                 }
 
-                                else -> "Nessun peer collegato"
+                                else -> "No peer connected"
                             }
                             Text(
                                 text = subtitle,
@@ -254,9 +262,40 @@ fun ConversationScreen(
                     }
                 },
                 actions = {
+                    val peer = state.members.firstOrNull { !it.isSelf }
+                    IconButton(
+                        onClick = {
+                            callScope.launch {
+                                container.startCall(
+                                    chatId = chatId,
+                                    peerNodeId = peer?.nodeId,
+                                    peerName = peer?.displayName ?: chat?.title.orEmpty(),
+                                    media = CallMedia.AUDIO,
+                                )
+                            }
+                        },
+                        enabled = !expired,
+                    ) {
+                        Icon(Icons.Default.Call, contentDescription = "Call")
+                    }
+                    IconButton(
+                        onClick = {
+                            callScope.launch {
+                                container.startCall(
+                                    chatId = chatId,
+                                    peerNodeId = peer?.nodeId,
+                                    peerName = peer?.displayName ?: chat?.title.orEmpty(),
+                                    media = CallMedia.VIDEO,
+                                )
+                            }
+                        },
+                        enabled = !expired,
+                    ) {
+                        Icon(Icons.Default.Videocam, contentDescription = "Video call")
+                    }
                     if (chat?.isGroup == true) {
                         IconButton(onClick = onOpenGroup) {
-                            Icon(Icons.Default.Groups, contentDescription = "Membri del gruppo")
+                            Icon(Icons.Default.Groups, contentDescription = "Group members")
                         }
                     }
                 },
@@ -322,7 +361,7 @@ fun ConversationScreen(
                                 onAudioToggle = {
                                     val path = message.attachment?.localPath
                                     if (path == null) {
-                                        viewModel.reportError("Il vocale non è ancora arrivato")
+                                        viewModel.reportError("The voice message has not arrived yet")
                                     } else if (playingId == message.id) {
                                         player.stop()
                                         playingId = null
@@ -340,7 +379,7 @@ fun ConversationScreen(
                                             },
                                         )
                                         playingId = if (started) message.id else null
-                                        if (!started) viewModel.reportError("Impossibile riprodurre il vocale")
+                                        if (!started) viewModel.reportError("Could not play the voice message")
                                     }
                                 },
                             )
@@ -356,14 +395,14 @@ fun ConversationScreen(
 
             state.replyingTo?.let { target ->
                 ComposeContextBar(
-                    label = "Rispondi a ${target.senderName}",
+                    label = "Reply to ${target.senderName}",
                     preview = previewOf(target),
                     onCancel = viewModel::cancelComposeMode,
                 )
             }
             state.editing?.let { target ->
                 ComposeContextBar(
-                    label = "Modifica messaggio",
+                    label = "Edit message",
                     preview = target.body,
                     onCancel = viewModel::cancelComposeMode,
                 )
@@ -429,7 +468,7 @@ fun ConversationScreen(
                             recordingMillis = 0L
                         }
 
-                        else -> viewModel.reportError("Microfono non disponibile")
+                        else -> viewModel.reportError("Microphone not available")
                     }
                 },
                 onRecordStop = { finishRecording() },
@@ -440,7 +479,7 @@ fun ConversationScreen(
     actionTarget?.let { message ->
         AlertDialog(
             onDismissRequest = { actionTarget = null },
-            title = { Text("Messaggio") },
+            title = { Text("Message") },
             text = {
                 Column {
                     Row(
@@ -469,7 +508,7 @@ fun ConversationScreen(
                     }) {
                         Icon(Icons.Default.Reply, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text("Rispondi")
+                        Text("Reply")
                     }
                     if (message.isOutgoing && message.kind == MessageKind.TEXT) {
                         TextButton(onClick = {
@@ -488,17 +527,19 @@ fun ConversationScreen(
                     }) {
                         Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text("Copia testo")
+                        Text("Copy text")
                     }
                     if (message.attachment?.localPath != null) {
                         TextButton(onClick = {
-                            val attachment = message.attachment
-                            FileOpener.open(context, attachment.localPath, attachment.mimeType)
+                            val path = message.attachment?.localPath
+                            if (path != null) {
+                                FileOpener.open(context, path, message.attachment?.mimeType.orEmpty())
+                            }
                             actionTarget = null
                         }) {
                             Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(10.dp))
-                            Text("Apri allegato")
+                            Text("Open attachment")
                         }
                     }
                     if (message.isOutgoing) {
@@ -508,13 +549,13 @@ fun ConversationScreen(
                         }) {
                             Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(10.dp))
-                            Text("Elimina per tutti")
+                            Text("Delete for everyone")
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { actionTarget = null }) { Text("Chiudi") }
+                TextButton(onClick = { actionTarget = null }) { Text("Close") }
             },
         )
     }
@@ -522,11 +563,11 @@ fun ConversationScreen(
     confirmDelete?.let { message ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text("Eliminare il messaggio?") },
+            title = { Text("Delete this message?") },
             text = {
                 Text(
-                    "Verrà rimosso anche sui dispositivi degli altri, se sono raggiungibili. " +
-                        "Chi era offline potrebbe non ricevere l'eliminazione.",
+                    "It will be removed from the others' devices too, if they are reachable. " +
+                        "Anyone who was offline may not receive the deletion.",
                 )
             },
             confirmButton = {
@@ -536,7 +577,7 @@ fun ConversationScreen(
                 }) { Text("Elimina") }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = null }) { Text("Annulla") }
+                TextButton(onClick = { confirmDelete = null }) { Text("Cancel") }
             },
         )
     }
@@ -584,7 +625,7 @@ private fun Composer(
                 onDismissRequest = { onAttachMenuChange(false) },
             ) {
                 DropdownMenuItem(
-                    text = { Text("Foto") },
+                    text = { Text("Photo") },
                     leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
                     onClick = {
                         onAttachMenuChange(false)
@@ -606,7 +647,7 @@ private fun Composer(
             value = value,
             onValueChange = onValueChange,
             enabled = enabled,
-            placeholder = { Text(if (enabled) "Scrivi un messaggio" else "Codice scaduto") },
+            placeholder = { Text(if (enabled) "Write a message" else "Code expired") },
             maxLines = 5,
             shape = RoundedCornerShape(22.dp),
             colors = TextFieldDefaults.colors(
@@ -661,7 +702,7 @@ private fun Composer(
         ) {
             Icon(
                 imageVector = if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Default.Mic,
-                contentDescription = if (canSend) "Invia" else "Tieni premuto per registrare",
+                contentDescription = if (canSend) "Invia" else "Hold to record",
                 tint = if (canSend) {
                     MaterialTheme.colorScheme.onPrimary
                 } else {
@@ -721,7 +762,7 @@ private fun RecordingBar(
         )
         Spacer(Modifier.width(12.dp))
         Text(
-            text = "Rilascia per inviare",
+            text = "Release to send",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -757,7 +798,7 @@ private fun VoicePreviewBar(
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Vocale pronto",
+                text = "Voice message ready",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -812,7 +853,7 @@ private fun ComposeContextBar(label: String, preview: String, onCancel: () -> Un
             )
         }
         IconButton(onClick = onCancel) {
-            Icon(Icons.Default.Close, contentDescription = "Annulla")
+            Icon(Icons.Default.Close, contentDescription = "Cancel")
         }
     }
 }
@@ -852,17 +893,17 @@ private fun EmptyConversationHint(connected: Boolean, modifier: Modifier = Modif
         InitialsAvatar(seed = "shutchat", name = "SC", size = 56.dp)
         Spacer(Modifier.height(16.dp))
         Text(
-            text = if (connected) "Siete collegati" else "In attesa di un peer",
+            text = if (connected) "You are connected" else "Waiting for a peer",
             style = MaterialTheme.typography.titleMedium,
         )
         Spacer(Modifier.height(6.dp))
         Text(
             text = if (connected) {
-                "Scrivete pure: i messaggi vanno da dispositivo a dispositivo, senza passare da " +
+                "Go ahead: messages go device to device, without passing through " +
                     "nessun server."
             } else {
-                "Questa stanza esiste solo sui dispositivi che hanno il codice. Per ricevere " +
-                    "bisogna essere sulla stessa rete Wi-Fi oppure vicini, con il Bluetooth attivo."
+                "This room exists only on the devices that hold the code. To receive " +
+                    "you must be on the same Wi-Fi network or close by, with Bluetooth on."
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -872,8 +913,8 @@ private fun EmptyConversationHint(connected: Boolean, modifier: Modifier = Modif
 }
 
 private fun previewOf(message: Message): String = when (message.kind) {
-    MessageKind.IMAGE -> "📷 Foto"
-    MessageKind.AUDIO -> "🎤 Messaggio vocale"
+    MessageKind.IMAGE -> "📷 Photo"
+    MessageKind.AUDIO -> "🎤 Voice message"
     MessageKind.FILE -> "📎 " + (message.attachment?.fileName ?: "File")
     else -> message.body.take(120)
 }

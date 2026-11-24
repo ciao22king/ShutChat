@@ -20,7 +20,7 @@ object ShareUtils {
         val invite = runCatching { InviteCodec.parse(code) }.getOrNull()
         val uri = invite?.let(InviteCodec::toUri)
         val body = buildString {
-            appendLine(title?.let { "Ti invito su ShutChat: $it" } ?: "Ti invito su ShutChat")
+            appendLine(title?.let { "I am inviting you to ShutChat: $it" } ?: "I am inviting you to ShutChat")
             appendLine()
             appendLine(code)
             if (uri != null) {
@@ -29,8 +29,8 @@ object ShareUtils {
             }
             appendLine()
             append(
-                "ShutChat non usa un server: i messaggi viaggiano solo tra i dispositivi. " +
-                    "Per parlare dobbiamo essere sulla stessa rete o vicini con il Bluetooth.",
+                "ShutChat uses no server: messages travel only between devices. " +
+                    "To talk we must be on the same network or close by with Bluetooth.",
             )
         }
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -38,11 +38,11 @@ object ShareUtils {
             putExtra(Intent.EXTRA_TEXT, body)
             putExtra(Intent.EXTRA_SUBJECT, title ?: "ShutChat")
         }
-        context.startActivity(Intent.createChooser(intent, "Condividi il codice"))
+        context.startActivity(Intent.createChooser(intent, "Share the code"))
     }
 
     /** Copies a code with a label, so paste destinations show something useful. */
-    fun copyCode(context: Context, code: String, label: String = "Codice ShutChat") {
+    fun copyCode(context: Context, code: String, label: String = "ShutChat code") {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             ?: return
         clipboard.setPrimaryClip(ClipData.newPlainText(label, code))

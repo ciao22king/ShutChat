@@ -79,7 +79,7 @@ class CreateChatViewModel(private val container: AppContainer) : ViewModel() {
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     busy = false,
-                    error = e.message ?: "Non è stato possibile creare la chat",
+                    error = e.message ?: "Could not create the chat",
                 )
             }
         }
@@ -111,5 +111,5 @@ class CreateChatViewModel(private val container: AppContainer) : ViewModel() {
     suspend fun memberCount(chatId: String): Int = container.chatRepository.members(chatId).size
 
     suspend fun title(chatId: String): String =
-        container.chatRepository.chat(chatId)?.title ?: "Nuova chat"
+        container.chatRepository.chat(chatId)?.title ?: "New chat"
 }

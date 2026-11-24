@@ -166,9 +166,9 @@ private fun CodeStateLine(chat: Chat, clock: Clock) {
         else -> chatColors.expiringSoon
     }
     val label = when {
-        expired -> "Codice spento · " + Expiry.describeDeadline(chat.inviteExpiryDay, clock)
-        permanent -> "Codice infinito"
-        else -> "Codice attivo fino al " + Expiry.describeDeadline(chat.inviteExpiryDay, clock)
+        expired -> "Code off · " + Expiry.describeDeadline(chat.inviteExpiryDay, clock)
+        permanent -> "Endless code"
+        else -> "Code valid until " + Expiry.describeDeadline(chat.inviteExpiryDay, clock)
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
@@ -193,8 +193,8 @@ private fun previewOf(chat: Chat, memberCount: Int): String {
     val preview = chat.lastMessagePreview
     val sender = chat.lastMessageSender
     return when {
-        preview.isNullOrBlank() && chat.isGroup -> "$memberCount membri · in attesa del primo messaggio"
-        preview.isNullOrBlank() -> "Nessun messaggio"
+        preview.isNullOrBlank() && chat.isGroup -> "$memberCount members · waiting for the first message"
+        preview.isNullOrBlank() -> "No messages"
         sender.isNullOrBlank() -> preview
         else -> "$sender: $preview"
     }
@@ -223,7 +223,7 @@ fun ExpiredCodeBanner(
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            text = "Il codice si è spento il $deadlineLabel. Nessuno può più raggiungere questa chat.",
+            text = "The code turned off on $deadlineLabel. Nobody can reach this chat any more.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
@@ -264,9 +264,9 @@ fun GroupInviteHint(
         Spacer(Modifier.width(10.dp))
         Text(
             text = if (memberCount <= 1) {
-                "Sei l'unico nel gruppo. Condividi il codice per far entrare qualcuno."
+                "You are alone in the group. Share the code to let someone in."
             } else {
-                "$memberCount membri nel gruppo."
+                "$memberCount members in the group."
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

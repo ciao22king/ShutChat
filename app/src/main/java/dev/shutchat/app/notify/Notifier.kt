@@ -34,26 +34,35 @@ class Notifier(private val context: Context) {
             listOf(
                 NotificationChannel(
                     CHANNEL_MESSAGES,
-                    "Messaggi",
+                    "Messages",
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
-                    description = "Nuovi messaggi ricevuti dai peer"
+                    description = "New messages received from peers"
                     enableVibration(true)
                 },
                 NotificationChannel(
                     CHANNEL_SESSION,
-                    "Sessione attiva",
+                    "Active session",
                     NotificationManager.IMPORTANCE_LOW,
                 ).apply {
-                    description = "ShutChat è in ascolto per ricevere messaggi"
+                    description = "ShutChat is listening for messages"
                     setShowBadge(false)
                 },
                 NotificationChannel(
                     CHANNEL_CODES,
-                    "Codici e scadenze",
+                    "Codes and expiries",
                     NotificationManager.IMPORTANCE_DEFAULT,
                 ).apply {
-                    description = "Avvisi quando un codice sta per scadere"
+                    description = "Warnings when a code is about to expire"
+                },
+                NotificationChannel(
+                    CHANNEL_CALLS,
+                    "Calls",
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
+                    description = "Incoming audio and video calls"
+                    enableVibration(true)
+                    setBypassDnd(true)
                 },
             ),
         )
@@ -87,11 +96,11 @@ class Notifier(private val context: Context) {
                 // session service, which already holds the mesh.
                 val reply = NotificationCompat.Action.Builder(
                     R.drawable.ic_notification,
-                    "Rispondi",
+                    "Reply",
                     replyIntent(chatId),
                 ).addRemoteInput(
                     androidx.core.app.RemoteInput.Builder(KEY_REPLY)
-                        .setLabel("Messaggio")
+                        .setLabel("Message")
                         .build(),
                 ).build()
                 addAction(reply)
@@ -128,16 +137,52 @@ class Notifier(private val context: Context) {
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_CODES)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Codice in scadenza")
-            .setContentText("$title: il codice si spegne il $expiresAtLabel")
+            .setContentTitle("Code expiring")
+            .setContentText("$title: the code turns off on $expiresAtLabel")
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("$title: il codice si spegne il $expiresAtLabel. Rigenera il codice se vuoi continuare a chattare."),
+                    .bigText("$title: the code turns off on $expiresAtLabel. Regenerate the code if you want to keep chatting."),
             )
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()
         runCatching { manager.notify(chatId.hashCode() xor 0x1F1F, notification) }
+    }
+
+    /**
+     * Rings for an incoming call.
+     *
+     * Uses the calls channel so the alert survives Do Not Disturb only when the
+     * user allows it, and never shows the caller's message text: there is none.
+     */
+    fun incomingCall(peerName: String, video: Boolean) {
+        if (!canPost()) return
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context,
+            CALL_NOTIFICATION_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val kind = if (video) "videochiamata" else "chiamata"
+        val notification = NotificationCompat.Builder(context, CHANNEL_CALLS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("$kind in arrivo")
+            .setContentText(peerName.ifBlank { "Someone" })
+            .setContentIntent(pending)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
+        runCatching { manager.notify(CALL_NOTIFICATION_ID, notification) }
+    }
+
+    fun clearIncomingCall() {
+        runCatching { manager.cancel(CALL_NOTIFICATION_ID) }
     }
 
     fun clear(chatId: String) {
@@ -161,7 +206,9 @@ class Notifier(private val context: Context) {
         const val CHANNEL_MESSAGES = "messages"
         const val CHANNEL_SESSION = "session"
         const val CHANNEL_CODES = "codes"
+        const val CHANNEL_CALLS = "calls"
         const val KEY_REPLY = "reply_text"
         const val SESSION_NOTIFICATION_ID = 0x5C0D
+        const val CALL_NOTIFICATION_ID = 0xCA11
     }
 }

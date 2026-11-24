@@ -59,7 +59,7 @@ class VoiceRecorder(
             startedAtMillis = System.currentTimeMillis()
             true
         } catch (e: Exception) {
-            Log.w(TAG, "registrazione non avviata", e)
+            Log.w(TAG, "recording not started", e)
             runCatching { mediaRecorder.release() }
             store.delete(file)
             recorder = null
@@ -106,7 +106,7 @@ class VoiceRecorder(
             }
         } catch (e: Exception) {
             // Thrown when the recording is shorter than the encoder's first frame.
-            Log.w(TAG, "registrazione scartata", e)
+            Log.w(TAG, "recording discarded", e)
             runCatching { mediaRecorder.release() }
             file?.let(store::delete)
             null

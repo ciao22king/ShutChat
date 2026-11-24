@@ -90,9 +90,9 @@ fun CreateChatScreen(
                 title = {
                     Text(
                         when (state.step) {
-                            is CreateChatViewModel.Step.ChooseKind -> "Nuova chat"
-                            is CreateChatViewModel.Step.ChooseExpiry -> "Scadenza del codice"
-                            is CreateChatViewModel.Step.Reveal -> "Il tuo codice"
+                            is CreateChatViewModel.Step.ChooseKind -> "New chat"
+                            is CreateChatViewModel.Step.ChooseExpiry -> "Code expiry"
+                            is CreateChatViewModel.Step.Reveal -> "Your code"
                         },
                     )
                 },
@@ -171,28 +171,28 @@ fun CreateChatScreen(
 private fun ChooseKindStep(onDirect: () -> Unit, onGroup: () -> Unit) {
     Column {
         Text(
-            text = "Con chi vuoi parlare?",
+            text = "Who do you want to talk to?",
             style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = "Il tipo viene scritto dentro il codice, quindi chi lo usa entra nella forma " +
-                "giusta di conversazione senza dover scegliere nulla.",
+            text = "The kind is written inside the code, so whoever uses it joins the right " +
+                "kind of conversation without choosing anything.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 22.dp),
         )
         KindCard(
             icon = Icons.Default.Person,
-            title = "Chat diretta",
-            subtitle = "Due dispositivi, una stanza. Il codice è la chiave.",
+            title = "Direct chat",
+            subtitle = "Two devices, one room. The code is the key.",
             onClick = onDirect,
         )
         Spacer(Modifier.height(12.dp))
         KindCard(
             icon = Icons.Default.Groups,
-            title = "Gruppo",
-            subtitle = "Più persone con lo stesso codice. Puoi aggiungerne altre quando vuoi.",
+            title = "Group",
+            subtitle = "Several people with the same code. You can add more at any time.",
             onClick = onGroup,
         )
     }
@@ -251,13 +251,13 @@ private fun ChooseExpiryStep(
 ) {
     Column {
         Text(
-            text = "Quanto deve durare il codice?",
+            text = "How long should the code last?",
             style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = "La data è dentro il codice, quindi vale per tutti allo stesso modo. " +
-                "Quando il codice si spegne, la stanza non è più raggiungibile da nessuno.",
+            text = "The date is inside the code, so it means the same to everyone. " +
+                "When the code turns off, nobody can reach the room any more.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
@@ -267,7 +267,7 @@ private fun ChooseExpiryStep(
             OutlinedTextField(
                 value = groupName,
                 onValueChange = onGroupName,
-                label = { Text("Nome del gruppo (facoltativo)") },
+                label = { Text("Group name (optional)") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -298,7 +298,7 @@ private fun ChooseExpiryStep(
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
             } else {
-                Text("Genera il codice")
+                Text("Generate the code")
             }
         }
     }
@@ -307,16 +307,16 @@ private fun ChooseExpiryStep(
 @Composable
 private fun PresetRow(preset: Expiry.Preset, selected: Boolean, onClick: () -> Unit) {
     val label = when (preset) {
-        Expiry.Preset.ONE_DAY -> "24 ore"
-        Expiry.Preset.THREE_DAYS -> "3 giorni"
-        Expiry.Preset.ONE_WEEK -> "7 giorni"
-        Expiry.Preset.ONE_MONTH -> "30 giorni"
-        Expiry.Preset.THREE_MONTHS -> "90 giorni"
+        Expiry.Preset.ONE_DAY -> "24 hours"
+        Expiry.Preset.THREE_DAYS -> "3 days"
+        Expiry.Preset.ONE_WEEK -> "7 days"
+        Expiry.Preset.ONE_MONTH -> "30 days"
+        Expiry.Preset.THREE_MONTHS -> "90 days"
         Expiry.Preset.NEVER -> "Infinito"
     }
     val hint = when (preset) {
-        Expiry.Preset.NEVER -> "Il codice non si spegne mai"
-        else -> "Poi il codice smette di funzionare"
+        Expiry.Preset.NEVER -> "The code never turns off"
+        else -> "Then the code stops working"
     }
     Row(
         modifier = Modifier
@@ -384,8 +384,8 @@ private fun RevealStep(
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = "Passa questo codice a chi vuoi far entrare. È l'unica cosa che serve: " +
-                "non ci sono account, non c'è un server che lo conserva.",
+            text = "Pass this code to whoever should join. It is all that is needed: " +
+                "there are no accounts and no server storing it.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
@@ -395,10 +395,10 @@ private fun RevealStep(
             code = code,
             expiryDay = expiryDay,
             clock = clock,
-            title = "Codice della stanza",
+            title = "Room code",
             onCopy = {
                 onCopy()
-                onSnack("Codice copiato")
+                onSnack("Code copied")
             },
             onShare = onShare,
         )
@@ -408,12 +408,12 @@ private fun RevealStep(
         if (expiryDay == null) {
             InfoLine(
                 icon = Icons.Default.AllInclusive,
-                text = "Codice infinito: resta valido finché qualcuno non lo rigenera.",
+                text = "Endless code: it stays valid until someone regenerates it.",
             )
         } else {
             InfoLine(
                 icon = Icons.Default.Refresh,
-                text = "Alla scadenza potrai rigenerare un codice e la conversazione resta.",
+                text = "When it expires you can regenerate a code and the conversation stays.",
             )
         }
 
@@ -424,7 +424,7 @@ private fun RevealStep(
                 .fillMaxWidth()
                 .height(52.dp),
         ) {
-            Text("Apri la chat")
+            Text("Open the chat")
         }
         Spacer(Modifier.height(8.dp))
         TextButton(
@@ -432,7 +432,7 @@ private fun RevealStep(
             enabled = !busy,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (busy) "Rigenero…" else "Rigenera un nuovo codice")
+            Text(if (busy) "Rigenero…" else "Generate a new code")
         }
     }
 }

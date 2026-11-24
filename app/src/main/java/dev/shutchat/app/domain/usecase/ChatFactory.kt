@@ -56,8 +56,8 @@ class ChatFactory(
         val secret = InviteCodec.secretOf(code)
         val chatId = Ids.newId()
         val defaultTitle = when (kind) {
-            InviteKind.DIRECT -> "Chat senza nome"
-            InviteKind.GROUP -> title?.ifBlank { null } ?: "Gruppo senza nome"
+            InviteKind.DIRECT -> "Untitled chat"
+            InviteKind.GROUP -> title?.ifBlank { null } ?: "Untitled group"
         }
 
         db.chatDao().upsert(
@@ -105,7 +105,7 @@ class ChatFactory(
         val code: InviteCode = InviteCodec.parse(rawCode)
         if (Expiry.isExpired(code.payload.expiryDay, clock)) {
             throw dev.shutchat.app.domain.model.InvalidInviteCodeException(
-                "Questo codice è scaduto il " + Expiry.describeDeadline(code.payload.expiryDay, clock),
+                "This code expired on " + Expiry.describeDeadline(code.payload.expiryDay, clock),
             )
         }
 
@@ -126,7 +126,7 @@ class ChatFactory(
             ChatEntity(
                 id = chatId,
                 kind = ChatKind.fromInviteKind(code.kind).wireValue,
-                title = if (code.kind == InviteKind.GROUP) "Gruppo senza nome" else "Chat senza nome",
+                title = if (code.kind == InviteKind.GROUP) "Untitled group" else "Untitled chat",
                 status = EnumMapping.chatStatusToInt(ChatStatus.ACTIVE),
                 inviteCode = code.text,
                 inviteExpiryDay = code.payload.expiryDay,
@@ -213,7 +213,7 @@ class ChatFactory(
 
     /** Regenerates the code for a chat, keeping the transcript. */
     suspend fun rotateCode(chatId: String, expiryDay: Int?): InviteCode {
-        val entity = db.chatDao().find(chatId) ?: error("chat inesistente")
+        val entity = db.chatDao().find(chatId) ?: error("unknown chat")
         val kind = if (entity.kind == ChatKind.GROUP.wireValue) InviteKind.GROUP else InviteKind.DIRECT
         val code = InviteCodec.create(kind = kind, expiryDay = expiryDay)
         db.chatDao().upsert(

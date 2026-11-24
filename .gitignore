@@ -25,6 +25,6 @@ local.properties
 .DS_Store
 Thumbs.db
 
-# Chiave di firma release: MAI nel repo (repo pubblico).
-# Vedi keys/keystore.properties e /workspace/project/keys/.
+# Release signing key: NEVER in the repo (public repo).
+# See keys/keystore.properties and /workspace/project/keys/.
 keys

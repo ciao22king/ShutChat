@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import dev.shutchat.app.ShutChatApp
 import dev.shutchat.app.di.AppContainer
 
@@ -19,6 +20,13 @@ import dev.shutchat.app.di.AppContainer
 fun CreationExtras.container(): AppContainer {
     val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as ShutChatApp
     return app.container
+}
+
+/** The app container, for screens that need a service rather than a view model. */
+@Composable
+fun rememberContainer(): AppContainer {
+    val context = LocalContext.current
+    return (context.applicationContext as ShutChatApp).container
 }
 
 /** Builds a `viewModelFactory` that resolves the container from the app. */

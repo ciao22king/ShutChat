@@ -15,6 +15,8 @@ import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import com.google.android.gms.nearby.connection.Strategy
 import dev.shutchat.app.core.Log
+import dev.shutchat.app.p2p.ProximityEvent
+import dev.shutchat.app.p2p.ProximityTransport
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import java.util.concurrent.ConcurrentHashMap
@@ -31,23 +33,19 @@ import java.util.concurrent.ConcurrentHashMap
  * other when they hold the same invite code — discovery cannot be used to
  * enumerate ShutChat users, and does not need location permission on Android 12+.
  */
-class NearbyTransport(private val context: Context) {
+class NearbyTransport(private val context: Context) : ProximityTransport {
 
     private val client: ConnectionsClient = Nearby.getConnectionsClient(context)
 
-    val incoming = MutableSharedFlow<Incoming>(extraBufferCapacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    val endpoints = MutableSharedFlow<EndpointEvent>(extraBufferCapacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val incoming = MutableSharedFlow<ProximityEvent.Incoming>(
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
 
-    sealed interface Incoming {
-        data class Frame(val endpointId: String, val bytes: ByteArray) : Incoming
-        data class Connected(val endpointId: String) : Incoming
-        data class Disconnected(val endpointId: String) : Incoming
-    }
-
-    sealed interface EndpointEvent {
-        data class Found(val endpointId: String, val roomIdHex: String) : EndpointEvent
-        data class Lost(val endpointId: String) : EndpointEvent
-    }
+    override val endpoints = MutableSharedFlow<ProximityEvent.Endpoint>(
+        extraBufferCapacity = 32,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
 
     /** Nearby endpoint id → room it was discovered for. */
     private val endpointRooms = ConcurrentHashMap<String, String>()
@@ -62,10 +60,10 @@ class NearbyTransport(private val context: Context) {
             if (payload.type != Payload.Type.BYTES) {
                 // ShutChat chunks files itself so transfers can resume; a stray
                 // stream/file payload is ignored rather than half-handled.
-                Log.d(TAG, "payload non BYTES ignorato")
+                Log.d(TAG, "non-BYTE payload ignored")
                 return
             }
-            payload.asBytes()?.let { incoming.tryEmit(Incoming.Frame(endpointId, it)) }
+            payload.asBytes()?.let { incoming.tryEmit(ProximityEvent.Incoming.Frame(endpointId, it)) }
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) = Unit
@@ -75,20 +73,20 @@ class NearbyTransport(private val context: Context) {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
             // Only accept endpoints we discovered for one of our rooms.
             if (endpointRooms[endpointId] == null) {
-                Log.w(TAG, "connessione da endpoint non richiesto")
+                Log.w(TAG, "connection from unexpected endpoint")
                 client.rejectConnection(endpointId)
                 return
             }
             client.acceptConnection(endpointId, payloadCallback)
-                .addOnFailureListener { Log.w(TAG, "acceptConnection fallita", it) }
+                .addOnFailureListener { Log.w(TAG, "acceptConnection failed", it) }
         }
 
         override fun onConnectionResult(endpointId: String, resolution: ConnectionResolution) {
             if (resolution.status.isSuccess) {
                 connected.add(endpointId)
-                incoming.tryEmit(Incoming.Connected(endpointId))
+                incoming.tryEmit(ProximityEvent.Incoming.Connected(endpointId))
             } else {
-                Log.d(TAG, "connessione rifiutata: ${resolution.status.statusMessage}")
+                Log.d(TAG, "connection refused: ${resolution.status.statusMessage}")
                 endpointRooms.remove(endpointId)
             }
         }
@@ -97,7 +95,7 @@ class NearbyTransport(private val context: Context) {
             connected.remove(endpointId)
             endpointRooms.remove(endpointId)
             endpointNodes.remove(endpointId)
-            incoming.tryEmit(Incoming.Disconnected(endpointId))
+            incoming.tryEmit(ProximityEvent.Incoming.Disconnected(endpointId))
         }
     }
 
@@ -105,61 +103,61 @@ class NearbyTransport(private val context: Context) {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
             val roomId = roomIdForServiceId(info.serviceId)
             if (roomId != null) endpointRooms[endpointId] = roomId
-            endpoints.tryEmit(EndpointEvent.Found(endpointId, roomId ?: ""))
+            endpoints.tryEmit(ProximityEvent.Endpoint.Found(endpointId, roomId ?: ""))
         }
 
         override fun onEndpointLost(endpointId: String) {
-            endpoints.tryEmit(EndpointEvent.Lost(endpointId))
+            endpoints.tryEmit(ProximityEvent.Endpoint.Lost(endpointId))
         }
     }
 
     /** One advertisement per room currently open on this device. */
-    fun advertise(roomIds: Collection<String>, name: String) {
+    override fun advertise(roomIds: Collection<String>, name: String) {
         roomIds.forEach { roomId ->
             client.startAdvertising(
                 serviceIdFor(roomId),
                 name,
                 connectionCallback,
                 AdvertisingOptions.Builder().setStrategy(STRATEGY).build(),
-            ).addOnFailureListener { Log.w(TAG, "startAdvertising fallita per $roomId", it) }
+            ).addOnFailureListener { Log.w(TAG, "startAdvertising failed for $roomId", it) }
         }
     }
 
-    fun discover(roomIds: Collection<String>) {
+    override fun discover(roomIds: Collection<String>) {
         roomIds.forEach { roomId ->
             client.startDiscovery(
                 serviceIdFor(roomId),
                 discoveryCallback,
                 DiscoveryOptions.Builder().setStrategy(STRATEGY).build(),
-            ).addOnFailureListener { Log.w(TAG, "startDiscovery fallita per $roomId", it) }
+            ).addOnFailureListener { Log.w(TAG, "startDiscovery failed for $roomId", it) }
         }
     }
 
-    fun connect(endpointId: String) {
+    override fun connect(endpointId: String) {
         val serviceId = endpointRooms[endpointId] ?: return
         client.requestConnection(serviceId, endpointId, connectionCallback)
-            .addOnFailureListener { Log.w(TAG, "requestConnection fallita", it) }
+            .addOnFailureListener { Log.w(TAG, "requestConnection failed", it) }
     }
 
-    fun send(endpointId: String, frame: ByteArray): Boolean = try {
+    override fun send(endpointId: String, frame: ByteArray): Boolean = try {
         client.sendPayload(endpointId, Payload.fromBytes(frame))
         true
     } catch (e: Exception) {
-        Log.d(TAG, "sendPayload fallito: ${e.message}")
+        Log.d(TAG, "sendPayload failed: ${e.message}")
         false
     }
 
-    fun bindNode(endpointId: String, nodeId: String) {
+    override fun bindNode(endpointId: String, nodeId: String) {
         endpointNodes[endpointId] = nodeId
     }
 
-    fun nodeIdFor(endpointId: String): String? = endpointNodes[endpointId]
+    override fun nodeIdFor(endpointId: String): String? = endpointNodes[endpointId]
 
-    fun isConnected(endpointId: String): Boolean = connected.contains(endpointId)
+    override fun isConnected(endpointId: String): Boolean = connected.contains(endpointId)
 
-    fun connectedEndpoints(): Set<String> = connected.toSet()
+    override fun connectedEndpoints(): Set<String> = connected.toSet()
 
-    fun stop() {
+    override fun stop() {
         runCatching { client.stopAdvertising() }
         runCatching { client.stopDiscovery() }
         runCatching { client.stopAllEndpoints() }

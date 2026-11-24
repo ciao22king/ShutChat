@@ -96,7 +96,7 @@ fun HomeScreen(
                 },
                 actions = {
                     IconButton(onClick = onJoin) {
-                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Entra con un codice")
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Join with a code")
                     }
                     IconButton(onClick = onSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Impostazioni")
@@ -125,10 +125,10 @@ fun HomeScreen(
             if (state.chats.isEmpty()) {
                 EmptyState(
                     icon = Icons.Default.ChatBubbleOutline,
-                    title = "Nessuna chat",
-                    message = "ShutChat non ha un server: non c'è niente da scaricare. " +
-                        "Crea un codice con il + e passalo a chi vuoi sentire, oppure " +
-                        "entra con un codice che ti hanno dato.",
+                    title = "No chats yet",
+                    message = "ShutChat has no server: there is nothing to download. " +
+                        "Create a code with + and pass it to whoever you want to talk to, or " +
+                        "join with a code you were given.",
                 )
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -177,11 +177,11 @@ fun HomeScreen(
                     TextButton(onClick = {
                         viewModel.setPinned(chat.id, !chat.pinned)
                         actionTarget = null
-                    }) { Text(if (chat.pinned) "Rimuovi dai fissati" else "Fissa in alto") }
+                    }) { Text(if (chat.pinned) "Unpin" else "Pin to top") }
                     TextButton(onClick = {
                         viewModel.setMuted(chat.id, !chat.muted)
                         actionTarget = null
-                    }) { Text(if (chat.muted) "Riattiva notifiche" else "Silenzia") }
+                    }) { Text(if (chat.muted) "Re-enable notifications" else "Silenzia") }
                     TextButton(onClick = {
                         viewModel.setArchived(chat.id, true)
                         actionTarget = null
@@ -189,11 +189,11 @@ fun HomeScreen(
                     TextButton(onClick = {
                         actionTarget = null
                         confirmDelete = chat
-                    }) { Text("Elimina chat") }
+                    }) { Text("Delete chat") }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { actionTarget = null }) { Text("Chiudi") }
+                TextButton(onClick = { actionTarget = null }) { Text("Close") }
             },
         )
     }
@@ -201,11 +201,11 @@ fun HomeScreen(
     confirmDelete?.let { chat ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text("Eliminare la chat?") },
+            title = { Text("Delete this chat?") },
             text = {
                 Text(
-                    "La conversazione e i suoi messaggi vengono rimossi solo da questo " +
-                        "dispositivo. Chi ha ancora il codice continua a vedere la stanza.",
+                    "The conversation and its messages are removed from this device only. " +
+                        "Anyone who still has the code keeps seeing the room.",
                 )
             },
             confirmButton = {
@@ -215,7 +215,7 @@ fun HomeScreen(
                 }) { Text("Elimina") }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = null }) { Text("Annulla") }
+                TextButton(onClick = { confirmDelete = null }) { Text("Cancel") }
             },
         )
     }
@@ -231,14 +231,14 @@ fun HomeScreen(
 @Composable
 private fun TransportStatusLine(peers: Int, lan: Boolean, nearby: Boolean) {
     val parts = buildList {
-        if (lan) add("Rete locale")
+        if (lan) add("Local network")
         if (nearby) add("Bluetooth")
     }
     val text = when {
-        parts.isEmpty() -> "Nessun trasporto attivo"
-        peers == 0 -> "In ascolto · ${parts.joinToString(" + ")}"
-        peers == 1 -> "1 peer collegato · ${parts.joinToString(" + ")}"
-        else -> "$peers peer collegati · ${parts.joinToString(" + ")}"
+        parts.isEmpty() -> "No transport active"
+        peers == 0 -> "Listening · ${parts.joinToString(" + ")}"
+        peers == 1 -> "1 peer connected · ${parts.joinToString(" + ")}"
+        else -> "$peers peers connected · ${parts.joinToString(" + ")}"
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (lan) {
@@ -293,27 +293,27 @@ private fun AddSheetContent(onCreate: () -> Unit, onJoin: () -> Unit) {
         )
         Spacer(Modifier.height(20.dp))
         Text(
-            text = "Inizia qualcosa",
+            text = "Start something",
             style = MaterialTheme.typography.headlineSmall,
         )
         Text(
-            text = "Le chat di ShutChat vivono sui dispositivi. Un codice è l'unico modo per far " +
-                "entrare qualcuno.",
+            text = "ShutChat conversations live on the devices. A code is the only way to let " +
+                "someone in.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 6.dp, bottom = 18.dp),
         )
         OptionTile(
             icon = Icons.Default.Add,
-            title = "Crea un codice",
-            subtitle = "Chat diretta o gruppo, con scadenza a scelta",
+            title = "Create a code",
+            subtitle = "Direct chat or group, with an expiry of your choice",
             onClick = onCreate,
         )
         Spacer(Modifier.height(10.dp))
         OptionTile(
             icon = Icons.Default.QrCodeScanner,
-            title = "Entra con un codice",
-            subtitle = "Scrivilo, incollalo o inquadra il QR",
+            title = "Join with a code",
+            subtitle = "Type it, paste it or scan the QR",
             onClick = onJoin,
         )
     }

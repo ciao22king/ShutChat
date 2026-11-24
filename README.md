@@ -1,7 +1,8 @@
 # ShutChat
 
-A peer-to-peer messenger for Android. Messages travel directly between devices:
-there is no server, no account, and nothing to sign up for.
+A peer-to-peer messenger for Android and Linux. Messages and calls travel
+directly between devices: there is no server, no account, and nothing to sign up
+for.
 
 Conversations are opened with a short invite code that the other person pastes
 or scans. The code carries its own expiry day, or can be set to never expire.
@@ -39,12 +40,34 @@ Transport is chosen at runtime:
   invite secret, so it sees neither the message nor who is talking; it cannot
   read a frame any more than a LAN peer could.
 
+The relay uses QoS 1 with a persistent session keyed on the node id, so a frame
+published while the other phone is asleep is queued by the broker and delivered
+when it reconnects. It fails over between `broker.hivemq.com`, `broker.emqx.io`
+and `test.mosquitto.org`, and reconnects with a backoff that resets on success.
+
+Calls ride the same mesh: the offer, the answer and the ICE candidates are
+ordinary envelopes, so they take whichever transport is available and never need
+a second rendezvous mechanism. Media itself is WebRTC peer to peer (opus audio,
+VP8 video); the signalling is the only part that ever touches a broker, and it
+is sealed like everything else.
+
 Two devices behind mobile carriers have no reachable address, so something has to
 be reachable for long-distance chat to work at all. The relay is that something,
 and it is deliberately the only third party involved.
 
 A foreground service keeps the mesh listening when the app is closed, because
 with no push server a message can only arrive if something is awake to receive it.
+
+## Modules
+
+| Module    | Contents |
+| --------- | -------- |
+| `shared`  | Protocol, crypto, invite codec, mesh engine, transports, call state machine. Plain Kotlin/JVM, no Android types. |
+| `app`     | Android client: Compose UI, foreground service, Nearby Connections, WebRTC media. |
+| `desktop` | Linux client: Compose for Desktop window, JSON file store, WebRTC media via `webrtc-java`. |
+
+Android-specific pieces (multicast lock, Nearby Connections) sit behind small
+interfaces in `shared`, so the same mesh runs on a JVM without an emulator.
 
 ## Features
 
@@ -58,6 +81,7 @@ with no push server a message can only arrive if something is awake to receive i
 - QR code sharing for an invite
 - Automatic expiry and rotation of invite codes
 - Notifications with inline reply
+- Audio and video calls, with mute, speaker and a ring timeout
 - Light and dark theme with Material You dynamic colour
 - Settings with a check for updates against the release feed
 
@@ -73,9 +97,37 @@ sdk.dir=/path/to/android-sdk
 Then:
 
 ```bash
-./gradlew :app:assembleDebug     # debug build
-./gradlew :app:assembleRelease   # minified release build
-./gradlew :app:testDebugUnitTest # unit tests
+./gradlew :app:assembleDebug     # debug APK
+./gradlew :app:assembleRelease   # minified release APK
+./gradlew :app:testDebugUnitTest # Android unit tests
+./gradlew :shared:test :desktop:test   # shared and desktop unit tests
+```
+
+### Linux packages
+
+```bash
+./gradlew :desktop:packageDeb && desktop/package-deb.sh
+desktop/package-appimage.sh
+```
+
+- `.deb` → `desktop/build/compose/binaries/main/deb/shutchat_<version>_amd64.deb`.
+  Installs to `/opt/shutchat`, with a menu entry and an icon. `package-deb.sh`
+  adds the `.desktop` file and the icon, which `jpackage` does not emit here.
+- AppImage → `desktop/build/compose/binaries/main/appimage/ShutChat-<version>-x86_64.AppImage`.
+  One file, no install, no root. `package-appimage.sh` downloads `appimagetool`
+  on first use and runs it with `--appimage-extract-and-run`, so FUSE is not
+  needed to build it.
+
+Both wrap a jlink runtime, so the target machine does not need Java.
+
+### Integration test against a real broker
+
+The relay is the one part that cannot be proven offline. There is an opt-in test
+that publishes a frame through a public broker and reads it back on a second
+client:
+
+```bash
+./gradlew :desktop:test --tests '*RelayRoundTripIT*' -Dshutchat.it=1
 ```
 
 The release build is signed with the debug key so the APK can be sideloaded
@@ -87,6 +139,9 @@ without a Play account. For a real release, replace the `signingConfig` in
 Android 8.0 (API 26) or newer. The app asks for Bluetooth, camera and
 microphone permissions; location is requested only on Android 11 and below,
 where the platform requires it for Wi-Fi scanning.
+
+The desktop client needs a Linux x86-64 machine with glibc and an X11 or Wayland
+session. Calls need a microphone; video calls need a camera.
 
 ## Licence
 

@@ -142,7 +142,7 @@ class Outbox(
                 )
             }
         }
-        if (handedOff > 0) Log.i(TAG, "rinviati $handedOff messaggi in attesa")
+        if (handedOff > 0) Log.i(TAG, "handed off $handedOff pending messages")
         handedOff
     }
 

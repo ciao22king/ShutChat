@@ -84,7 +84,7 @@ fun GroupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Dettagli gruppo") },
+                title = { Text("Group details") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
@@ -112,12 +112,12 @@ fun GroupScreen(
         ) {
             item {
                 Text(
-                    text = state.chat?.title ?: "Gruppo",
+                    text = state.chat?.title ?: "Group",
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.padding(top = 4.dp),
                 )
                 Text(
-                    text = "${state.members.size} membri · ${state.connected} collegati ora",
+                    text = "${state.members.size} members · ${state.connected} online now",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp, bottom = 18.dp),
@@ -125,7 +125,7 @@ fun GroupScreen(
             }
 
             item {
-                SectionHeader("Codice del gruppo")
+                SectionHeader("Group code")
             }
 
             item {
@@ -138,7 +138,7 @@ fun GroupScreen(
                         onShare = { ShareUtils.shareCode(context, code, chat.title) },
                     )
                 } ?: Text(
-                    text = "Nessun codice attivo.",
+                    text = "No active code.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -157,7 +157,7 @@ fun GroupScreen(
                     )
                     ActionButton(
                         icon = Icons.Default.QrCode2,
-                        label = "Mostra QR",
+                        label = "Show QR",
                         onClick = { showQr = true },
                         modifier = Modifier.weight(1f),
                     )
@@ -167,8 +167,8 @@ fun GroupScreen(
             item {
                 SectionHeader("Membri")
                 Text(
-                    text = "Sono i dispositivi che hanno usato il codice. Non c'è un elenco " +
-                        "centrale: se qualcuno esce, sparisce da qui la prossima volta che si collega.",
+                    text = "These are the devices that used the code. There is no central " +
+                        "list: if someone leaves, they disappear here the next time they connect.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 8.dp),
@@ -192,7 +192,7 @@ fun GroupScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
-                ) { Text("Torna alla chat") }
+                ) { Text("Back to the chat") }
                 Spacer(Modifier.height(32.dp))
             }
         }
@@ -201,7 +201,7 @@ fun GroupScreen(
     if (renaming) {
         AlertDialog(
             onDismissRequest = { renaming = false },
-            title = { Text("Nome del gruppo") },
+            title = { Text("Group name") },
             text = {
                 OutlinedTextField(
                     value = newName,
@@ -217,7 +217,7 @@ fun GroupScreen(
                 }) { Text("Salva") }
             },
             dismissButton = {
-                TextButton(onClick = { renaming = false }) { Text("Annulla") }
+                TextButton(onClick = { renaming = false }) { Text("Cancel") }
             },
         )
     }
@@ -234,8 +234,8 @@ fun GroupScreen(
             title = { Text("Rimuovere ${member.displayName}?") },
             text = {
                 Text(
-                    "Sparirà da questo elenco. Se ha ancora il codice può rientrare, perché " +
-                        "l'accesso dipende dal codice e non da un permesso.",
+                    "They will disappear from this list. If they still have the code they can come back, because " +
+                        "access depends on the code, not on a permission.",
                 )
             },
             confirmButton = {
@@ -245,7 +245,7 @@ fun GroupScreen(
                 }) { Text("Rimuovi") }
             },
             dismissButton = {
-                TextButton(onClick = { removeTarget = null }) { Text("Annulla") }
+                TextButton(onClick = { removeTarget = null }) { Text("Cancel") }
             },
         )
     }
@@ -337,19 +337,19 @@ private fun QrDialog(code: String, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Inquadra per entrare") },
+        title = { Text("Scan to join") },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (bitmap != null) {
                     androidx.compose.foundation.Image(
                         bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Codice QR",
+                        contentDescription = "QR code",
                         modifier = Modifier
                             .size(260.dp)
                             .clip(RoundedCornerShape(16.dp)),
                     )
                 } else {
-                    Text("Non è stato possibile generare il QR. Usa il codice testuale.")
+                    Text("Could not generate the QR. Use the text code.")
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
@@ -360,7 +360,7 @@ private fun QrDialog(code: String, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Chiudi") }
+            TextButton(onClick = onDismiss) { Text("Close") }
         },
     )
 }

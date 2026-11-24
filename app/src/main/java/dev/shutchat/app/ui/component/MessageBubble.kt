@@ -124,7 +124,7 @@ fun MessageBubble(
                     )
 
                     MessageKind.TEXT -> Text(
-                        text = if (message.deleted) "Messaggio eliminato" else message.body,
+                        text = if (message.deleted) "Message deleted" else message.body,
                         style = MaterialTheme.typography.bodyLarge,
                         color = if (message.deleted) textColor.copy(alpha = 0.6f) else textColor,
                         fontStyle = if (message.deleted) FontStyle.Italic else FontStyle.Normal,
@@ -193,7 +193,7 @@ private fun MediaBody(message: Message, textColor: Color) {
             } else {
                 TransferProgress(
                     progress = attachment?.progress ?: 0f,
-                    label = "Foto in arrivo",
+                    label = "Photo arriving",
                     textColor = textColor,
                 )
             }
@@ -230,7 +230,7 @@ private fun FileBody(message: Message, textColor: Color) {
                 Spacer(Modifier.size(6.dp))
                 TransferProgress(
                     progress = attachment.progress,
-                    label = "In arrivo",
+                    label = "Arriving",
                     textColor = textColor,
                 )
             }
@@ -259,10 +259,10 @@ private fun AudioBody(
 
     // The stored duration is what the sender measured while recording, so it is
     // available before the file arrives and can label a note still in flight.
-    val knownDuration = when {
-        durationMillis > 0L -> durationMillis
-        attachment?.durationMillis != null -> attachment.durationMillis
-        else -> 0L
+    val knownDuration = if (durationMillis > 0L) {
+        durationMillis
+    } else {
+        attachment?.durationMillis ?: 0L
     }
 
     Row(
@@ -291,7 +291,7 @@ private fun AudioBody(
             if (!ready) {
                 TransferProgress(
                     progress = attachment?.progress ?: 0f,
-                    label = "Vocale in arrivo",
+                    label = "Voice message arriving",
                     textColor = textColor,
                 )
             } else {
@@ -416,14 +416,14 @@ private fun StatusGlyph(status: MessageStatus, tint: Color) {
     when (status) {
         MessageStatus.PENDING, MessageStatus.SENDING -> Icon(
             imageVector = Icons.Default.Schedule,
-            contentDescription = "in invio",
+            contentDescription = "sending",
             modifier = Modifier.size(13.dp),
             tint = tint.copy(alpha = alpha),
         )
 
         MessageStatus.QUEUED -> Icon(
             imageVector = Icons.Default.Schedule,
-            contentDescription = "in attesa di un peer",
+            contentDescription = "waiting for a peer",
             modifier = Modifier.size(13.dp),
             tint = LocalChatColors.current.expiringSoon,
         )
@@ -444,7 +444,7 @@ private fun StatusGlyph(status: MessageStatus, tint: Color) {
 
         MessageStatus.FAILED -> Icon(
             imageVector = Icons.Default.ErrorOutline,
-            contentDescription = "non inviato",
+            contentDescription = "not sent",
             modifier = Modifier.size(13.dp),
             tint = LocalChatColors.current.expired,
         )

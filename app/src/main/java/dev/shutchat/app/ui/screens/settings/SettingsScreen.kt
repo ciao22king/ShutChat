@@ -101,22 +101,22 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
         ) {
-            SectionHeader("Il tuo profilo")
+            SectionHeader("Your profile")
 
             SettingRow(
                 title = "Nome",
-                subtitle = state.displayName.ifBlank { "Non impostato" },
+                subtitle = state.displayName.ifBlank { "Not set" },
                 onClick = {
                     nameDraft = state.displayName
                     editingName = true
                 },
             )
             SettingRow(
-                title = "Stato",
+                title = "Status",
                 subtitle = state.status.ifBlank { "Disponibile" },
             )
             SettingRow(
-                title = "Identificativo del dispositivo",
+                title = "Device identifier",
                 subtitle = nodeId.take(16),
                 trailing = {
                     IconButton(onClick = { clipboard.setText(AnnotatedString(nodeId)) }) {
@@ -132,21 +132,21 @@ fun SettingsScreen(onBack: () -> Unit) {
             SectionHeader("Aspetto")
 
             SettingSwitch(
-                title = "Segui il sistema",
-                subtitle = "Tema chiaro o scuro secondo il telefono",
+                title = "Follow the system",
+                subtitle = "Light or dark theme, following the phone",
                 checked = state.theme == "system",
                 onCheckedChange = { viewModel.setTheme(if (it) "system" else "dark") },
             )
             SettingSwitch(
-                title = "Tema scuro",
-                subtitle = "Attivo quando non segui il sistema",
+                title = "Dark theme",
+                subtitle = "Active when not following the system",
                 checked = state.theme == "dark",
                 enabled = state.theme != "system",
                 onCheckedChange = { viewModel.setTheme(if (it) "dark" else "light") },
             )
             SettingSwitch(
-                title = "Colori dinamici",
-                subtitle = "Usa la tavolozza di Android 12 e successivi",
+                title = "Dynamic colours",
+                subtitle = "Use the Android 12+ palette",
                 checked = state.dynamicColor,
                 onCheckedChange = viewModel::setDynamicColor,
             )
@@ -154,26 +154,26 @@ fun SettingsScreen(onBack: () -> Unit) {
             SectionHeader("Conversazione")
 
             SettingSwitch(
-                title = "Spunte di lettura",
-                subtitle = "Avvisa quando apri un messaggio",
+                title = "Read receipts",
+                subtitle = "Notify when you open a message",
                 checked = state.readReceipts,
                 onCheckedChange = viewModel::setReadReceipts,
             )
             SettingSwitch(
-                title = "Indicatore di scrittura",
-                subtitle = "Mostra agli altri quando stai scrivendo",
+                title = "Typing indicator",
+                subtitle = "Show others when you are typing",
                 checked = state.typingIndicator,
                 onCheckedChange = viewModel::setTypingIndicator,
             )
             SettingSwitch(
-                title = "Scarica allegati in automatico",
-                subtitle = "Altrimenti il file arriva solo quando lo apri",
+                title = "Download attachments automatically",
+                subtitle = "Otherwise the file arrives only when you open it",
                 checked = state.autoDownload,
                 onCheckedChange = viewModel::setAutoDownload,
             )
 
             Text(
-                text = "Conserva i messaggi per ${state.retentionDays} giorni",
+                text = "Keep messages for ${state.retentionDays} days",
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 14.dp),
             )
@@ -184,7 +184,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 steps = 0,
             )
             Text(
-                text = "I messaggi più vecchi vengono cancellati solo da questo dispositivo.",
+                text = "Older messages are deleted from this device only.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -193,60 +193,60 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             SettingSwitch(
                 title = "Notifiche",
-                subtitle = "Avvisi per i messaggi nuovi",
+                subtitle = "Alerts for new messages",
                 checked = state.notificationsEnabled,
                 onCheckedChange = viewModel::setNotificationsEnabled,
             )
             SettingSwitch(
                 title = "Suoni",
-                subtitle = "Un tono per ogni messaggio",
+                subtitle = "A tone for every message",
                 checked = state.messageSounds,
                 enabled = state.notificationsEnabled,
                 onCheckedChange = viewModel::setMessageSounds,
             )
             SettingSwitch(
                 title = "Vibrazione",
-                subtitle = "Vibra sui messaggi nuovi",
+                subtitle = "Vibrate on new messages",
                 checked = state.vibration,
                 enabled = state.notificationsEnabled,
                 onCheckedChange = viewModel::setVibration,
             )
             SettingSwitch(
-                title = "Resta in ascolto",
-                subtitle = "Mantiene la ricezione quando l'app è chiusa, con una notifica fissa",
+                title = "Stay listening",
+                subtitle = "Keeps receiving when the app is closed, with a fixed notification",
                 checked = state.backgroundMode,
                 onCheckedChange = viewModel::setBackgroundMode,
             )
 
-            SectionHeader("Come raggiungere gli altri")
+            SectionHeader("How to reach others")
 
             SettingSwitch(
                 icon = Icons.Default.Wifi,
-                title = "Rete locale",
-                subtitle = "Si collega ai dispositivi sulla stessa Wi-Fi",
+                title = "Local network",
+                subtitle = "Connects to devices on the same Wi-Fi",
                 checked = state.lanDiscovery,
                 onCheckedChange = viewModel::setLanDiscovery,
             )
             SettingSwitch(
                 icon = Icons.Default.Bluetooth,
                 title = "Bluetooth / Wi-Fi Direct",
-                subtitle = "Funziona anche senza router, se siete vicini",
+                subtitle = "Works without a router too, when you are close",
                 checked = state.nearbyDiscovery,
                 onCheckedChange = viewModel::setNearbyDiscovery,
             )
             SettingSwitch(
                 icon = Icons.Default.Hub,
-                title = "Inoltra per gli altri",
-                subtitle = "Passa i messaggi delle stanze che conosci, per allungare la portata",
+                title = "Forward for others",
+                subtitle = "Pass on messages for the rooms you know, to extend the reach",
                 checked = state.relayEnabled,
                 onCheckedChange = viewModel::setRelayEnabled,
             )
             SettingSwitch(
                 icon = Icons.Default.Public,
-                title = "Relay su internet",
-                subtitle = "Attivo: serve per scrivere a chi è lontano. Passa dal broker " +
-                    "pubblico broker.hivemq.com, che vede solo dati cifrati: non i messaggi, " +
-                    "non il tuo nome. Spegnilo per restare solo sulla rete locale.",
+                title = "Relay over the internet",
+                subtitle = "On: needed to message people far away. It goes through the public " +
+                    "broker broker.hivemq.com, which sees encrypted data only: not the messages, " +
+                    "not your name. Turn it off to stay on the local network only.",
                 checked = state.publicRelay,
                 onCheckedChange = viewModel::setPublicRelay,
             )
@@ -259,7 +259,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onCheck = viewModel::checkForUpdates,
             )
 
-            SectionHeader("Dati su questo dispositivo")
+            SectionHeader("Data on this device")
 
             DiagnosticsBlock(
                 diagnostics = state.diagnostics,
@@ -284,9 +284,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("Cancella tutti i messaggi", style = MaterialTheme.typography.titleMedium)
+                    Text("Delete all messages", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Le stanze e i loro codici restano",
+                        "Rooms and their codes stay",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -295,9 +295,9 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(20.dp))
             Text(
-                text = "ShutChat non ha un server. Non esiste un account, un backup o un posto " +
-                    "dove i tuoi messaggi vengano conservati: viaggiano tra i dispositivi e " +
-                    "restano dove sono arrivati.",
+                text = "ShutChat has no server. There is no account, no backup and no place " +
+                    "where your messages are kept: they travel between devices and " +
+                    "stay where they arrived.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -308,7 +308,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     if (editingName) {
         AlertDialog(
             onDismissRequest = { editingName = false },
-            title = { Text("Come ti chiami?") },
+            title = { Text("What is your name?") },
             text = {
                 OutlinedTextField(
                     value = nameDraft,
@@ -324,7 +324,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }) { Text("Salva") }
             },
             dismissButton = {
-                TextButton(onClick = { editingName = false }) { Text("Annulla") }
+                TextButton(onClick = { editingName = false }) { Text("Cancel") }
             },
         )
     }
@@ -332,11 +332,11 @@ fun SettingsScreen(onBack: () -> Unit) {
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("Cancellare tutti i messaggi?") },
+            title = { Text("Delete all messages?") },
             text = {
                 Text(
-                    "Vengono rimossi solo da questo dispositivo. Gli altri continuano a vedere " +
-                        "la loro copia, perché non esiste un posto da cui cancellarli per tutti.",
+                    "They are removed from this device only. The others keep seeing " +
+                        "their copy, because there is no place to delete them for everyone.",
                 )
             },
             confirmButton = {
@@ -346,7 +346,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }) { Text("Cancella") }
             },
             dismissButton = {
-                TextButton(onClick = { confirmClear = false }) { Text("Annulla") }
+                TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
             },
         )
     }
@@ -401,7 +401,7 @@ private fun UpdateRow(
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Versione installata", style = MaterialTheme.typography.titleMedium)
+                Text("Installed version", style = MaterialTheme.typography.titleMedium)
                 Text(
                     text = version.ifBlank { "sconosciuta" },
                     style = MaterialTheme.typography.bodySmall,
@@ -416,14 +416,14 @@ private fun UpdateRow(
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(if (checking) "Controllo…" else "Cerca aggiornamenti")
+                Text(if (checking) "Controllo…" else "Check for updates")
             }
         }
         val message = when (updateState) {
             is UpdateCheckState.Idle -> null
             is UpdateCheckState.Checking -> null
-            is UpdateCheckState.UpToDate -> "Hai già l'ultima versione."
-            is UpdateCheckState.Available -> "Disponibile la versione ${updateState.version}."
+            is UpdateCheckState.UpToDate -> "You already have the latest version."
+            is UpdateCheckState.Available -> "Version ${updateState.version} is available."
             is UpdateCheckState.Failed -> updateState.reason
         }
         if (message != null) {
@@ -439,7 +439,7 @@ private fun UpdateRow(
         }
         if (updateState is UpdateCheckState.Available && updateState.url != null) {
             Text(
-                text = "Scarica l'APK",
+                text = "Download the APK",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
@@ -447,13 +447,13 @@ private fun UpdateRow(
                     .clickable { openUrl(updateState.url) },
             )
             // Android refuses to update an app whose new APK is signed with a different
-            // key, and it reports that only as "App non installata", which reads like a
+            // key, and it reports that only as "App not installed", which reads like a
             // corrupt download. Anyone coming from a build made before the signing key
             // was pinned will hit exactly that, so say what to do about it.
             Text(
-                text = "Se l'installazione dice \"App non installata\", disinstalla ShutChat e " +
-                    "reinstalla: le versioni molto vecchie erano firmate con un'altra chiave. " +
-                    "I messaggi restano sul telefono finché non disinstalli.",
+                text = "Se l'installazione dice \"App not installed\", disinstalla ShutChat e " +
+                    "reinstall: very old versions were signed with another key. " +
+                    "Messages stay on the phone until you uninstall.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -546,7 +546,7 @@ private fun DiagnosticsBlock(
     ) {
         DiagnosticLine(
             icon = Icons.Default.Dns,
-            label = "Rete locale",
+            label = "Local network",
             value = when {
                 !diagnostics.lanActive -> "spenta"
                 diagnostics.lanPort != 0 -> "attiva sulla porta ${diagnostics.lanPort}"
@@ -560,37 +560,37 @@ private fun DiagnosticsBlock(
         )
         DiagnosticLine(
             icon = Icons.Default.Public,
-            label = "Relay su internet",
+            label = "Relay over the internet",
             value = when {
                 !diagnostics.relayActive && diagnostics.relayError == null -> "spento"
                 diagnostics.relayActive -> "collegato"
-                else -> "non collegato: ${diagnostics.relayError}"
+                else -> "not connected: ${diagnostics.relayError}"
             },
         )
         DiagnosticLine(
             icon = Icons.Default.Devices,
-            label = "Peer collegati",
+            label = "Connected peers",
             value = diagnostics.connectedPeers.toString(),
         )
         DiagnosticLine(
             icon = Icons.Default.Forum,
-            label = "Stanze in ascolto",
+            label = "Rooms listening",
             value = diagnostics.roomsAdvertised.toString(),
         )
         DiagnosticLine(
             icon = Icons.Default.Hub,
-            label = "Frame inoltrati",
+            label = "Frames forwarded",
             value = diagnostics.framesRelayed.toString(),
         )
         DiagnosticLine(
             icon = Icons.Default.Info,
-            label = "Messaggi non decifrati",
+            label = "Undecryptable messages",
             value = diagnostics.decryptFailures.toString(),
         )
         DiagnosticLine(
             icon = Icons.Default.Palette,
-            label = "Contenuto locale",
-            value = "$chatCount chat, $messageCount messaggi",
+            label = "Local content",
+            value = "$chatCount chats, $messageCount messages",
         )
     }
 }

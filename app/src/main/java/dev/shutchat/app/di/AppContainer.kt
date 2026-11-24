@@ -16,9 +16,13 @@ import dev.shutchat.app.notify.Notifier
 import dev.shutchat.app.p2p.AttachmentTransfer
 import dev.shutchat.app.p2p.MeshEngine
 import dev.shutchat.app.p2p.RoomSpec
+import dev.shutchat.app.p2p.call.AndroidCallMediaFactory
+import dev.shutchat.app.p2p.call.CallController
+import dev.shutchat.app.p2p.lan.AndroidMulticastLock
 import dev.shutchat.app.p2p.lan.LanDiscovery
 import dev.shutchat.app.p2p.lan.LanServer
 import dev.shutchat.app.p2p.nearby.NearbyTransport
+import dev.shutchat.app.p2p.protocol.isCallSignal
 import dev.shutchat.app.p2p.relay.RelayTransport
 import dev.shutchat.app.p2p.protocol.Envelope
 import dev.shutchat.app.p2p.protocol.WireMessage
@@ -52,23 +56,56 @@ class AppContainer(private val context: Context) {
 
     val lanServer: LanServer by lazy { LanServer() }
 
-    val lanDiscovery: LanDiscovery by lazy { LanDiscovery() }
+    val lanDiscovery: LanDiscovery by lazy { LanDiscovery(AndroidMulticastLock(context)) }
 
     val nearby: NearbyTransport by lazy { NearbyTransport(context) }
 
     /** Public-broker transport for long distance. Off unless the user enables it. */
     val relay: RelayTransport by lazy {
-        RelayTransport(scope = appScope, clientId = "shutchat-" + java.util.UUID.randomUUID())
+        // A stable id, set from the node id at bootstrap: the broker keeps the
+        // session (and queued frames) only while the client id stays the same.
+        RelayTransport(scope = appScope, clientId = "shutchat-pending")
     }
 
     val mesh: MeshEngine by lazy {
         MeshEngine(
             scope = appScope,
-            nearby = nearby,
+            proximity = nearby,
             lanServer = lanServer,
             lanDiscovery = lanDiscovery,
-            appContext = context,
             relay = relay,
+            appVersion = dev.shutchat.app.BuildConfig.VERSION_NAME,
+        )
+    }
+
+    /** Identity cached at bootstrap so the call layer can read it without suspending. */
+    @Volatile
+    private var localNodeId: String = ""
+
+    @Volatile
+    private var localDisplayName: String = ""
+
+    /**
+     * Audio and video calls.
+     *
+     * Signalling rides the same sealed envelopes as text; only the media is
+     * peer to peer. The controller is platform-neutral, so the desktop client
+     * runs the very same one.
+     */
+    val calls: CallController by lazy {
+        CallController(
+            scope = appScope,
+            selfNodeId = { localNodeId },
+            selfName = { localDisplayName.ifBlank { "Tu" } },
+            clock = clock,
+            send = { envelope -> mesh.broadcast(envelope) },
+            mediaFactory = AndroidCallMediaFactory(context),
+            onIncoming = { snapshot ->
+                notifier.incomingCall(
+                    peerName = snapshot.peerName,
+                    video = snapshot.media == dev.shutchat.app.p2p.protocol.CallMedia.VIDEO,
+                )
+            },
         )
     }
 
@@ -122,6 +159,9 @@ class AppContainer(private val context: Context) {
 
         val nodeId = settings.nodeId()
         val displayName = settings.currentDisplayName()
+        localNodeId = nodeId
+        localDisplayName = displayName
+        relay.setClientId("shutchat-$nodeId")
         mesh.setIdentity(nodeId, displayName)
         mesh.forwardingEnabled = settings.relayEnabled.first()
         mesh.setPublicRelay(settings.publicRelay.first())
@@ -167,11 +207,11 @@ class AppContainer(private val context: Context) {
                         nodeId = settings.nodeId(),
                     ),
                 )
-            }.onFailure { Log.w("AppContainer", "avviso di uscita non inviato", it) }
+            }.onFailure { Log.w("AppContainer", "avviso di uscita not sent", it) }
         }
 
         val orphans = runCatching { chatFactory.deleteChat(chatId) }
-            .onFailure { Log.e("AppContainer", "cancellazione chat fallita", it) }
+            .onFailure { Log.e("AppContainer", "chat deletion failed", it) }
             .getOrDefault(emptyList())
 
         // A deleted chat's messages must not be re-sent by the outbox, and its
@@ -225,8 +265,29 @@ class AppContainer(private val context: Context) {
 
     suspend fun broadcastEnvelope(envelope: Envelope): Int = mesh.broadcast(envelope)
 
+    /**
+     * Starts a call in [chatId].
+     *
+     * The UI knows a chat id; the wire needs the room id, so the translation
+     * happens here rather than in every screen that can place a call.
+     */
+    suspend fun startCall(
+        chatId: String,
+        peerNodeId: String?,
+        peerName: String,
+        media: dev.shutchat.app.p2p.protocol.CallMedia,
+    ) {
+        val chat = chatRepository.chatEntity(chatId) ?: return
+        calls.startCall(chat.roomId, peerNodeId, peerName, media)
+    }
+
     private suspend fun consumeIncoming() {
         mesh.received.collect { received ->
+            // Call signalling is transient: it must not become a chat row.
+            if (received.envelope.isCallSignal()) {
+                calls.onEnvelope(received.envelope, received.fromNodeId)
+                return@collect
+            }
             // Attachment control envelopes are transport concerns, not chat rows.
             when (received.envelope) {
                 is dev.shutchat.app.p2p.protocol.TransferStart,
@@ -240,7 +301,7 @@ class AppContainer(private val context: Context) {
                 else -> Unit
             }
             runCatching { inboundHandler.handle(received) }
-                .onFailure { Log.w("AppContainer", "envelope scartato", it) }
+                .onFailure { Log.w("AppContainer", "envelope discarded", it) }
         }
     }
 

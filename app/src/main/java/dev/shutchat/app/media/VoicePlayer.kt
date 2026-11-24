@@ -42,7 +42,7 @@ class VoicePlayer {
     ): Boolean {
         stop()
         if (!file.exists() || file.length() == 0L) {
-            Log.w(TAG, "file vocale assente o vuoto: $messageId")
+            Log.w(TAG, "voice file missing or empty: $messageId")
             return false
         }
 
@@ -77,7 +77,7 @@ class VoicePlayer {
             mediaPlayer.prepareAsync()
             true
         } catch (e: Exception) {
-            Log.w(TAG, "riproduzione non riuscita: $messageId", e)
+            Log.w(TAG, "playback failed: $messageId", e)
             stop()
             false
         }

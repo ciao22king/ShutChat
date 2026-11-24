@@ -53,7 +53,7 @@ class SessionService : Service() {
         } catch (e: Exception) {
             // On Android 14+ a missing permission throws rather than being
             // ignored; the app still works while in the foreground.
-            Log.w(TAG, "startForeground rifiutato", e)
+            Log.w(TAG, "startForeground refused", e)
             stopSelf()
             return
         }

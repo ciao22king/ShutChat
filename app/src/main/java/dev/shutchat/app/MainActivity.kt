@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -19,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import dev.shutchat.app.core.Log
 import dev.shutchat.app.ui.navigation.ShutChatNavHost
+import dev.shutchat.app.ui.screens.call.CallOverlay
 import dev.shutchat.app.ui.theme.ShutChatTheme
 import dev.shutchat.app.ui.theme.ThemeMode
 
@@ -39,7 +41,7 @@ class MainActivity : ComponentActivity() {
     ) { granted ->
         val denied = granted.filterValues { !it }.keys
         if (denied.isNotEmpty()) {
-            Log.i(TAG, "permessi negati: ${denied.joinToString()}")
+            Log.i(TAG, "permissions denied: ${denied.joinToString()}")
         }
     }
 
@@ -68,7 +70,11 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    ShutChatNavHost(startConversation = startChatId)
+                    Box(Modifier.fillMaxSize()) {
+                        ShutChatNavHost(startConversation = startChatId)
+                        // Above every route: a call can arrive on any screen.
+                        CallOverlay(container)
+                    }
                 }
             }
         }

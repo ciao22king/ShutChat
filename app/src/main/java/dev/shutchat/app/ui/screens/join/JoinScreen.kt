@@ -76,7 +76,7 @@ fun JoinScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Entra con un codice") },
+                title = { Text("Join with a code") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
@@ -96,8 +96,8 @@ fun JoinScreen(
                 .padding(horizontal = 20.dp),
         ) {
             Text(
-                text = "Incolla il codice che ti hanno dato. Sono 24 caratteri in gruppi di " +
-                    "quattro: puoi scriverlo anche con gli spazi o in minuscolo.",
+                text = "Paste the code you were given. It is 24 characters in groups of " +
+                    "four: you can type it with spaces or in lower case.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp, bottom = 18.dp),
@@ -106,7 +106,7 @@ fun JoinScreen(
             OutlinedTextField(
                 value = state.input,
                 onValueChange = viewModel::onInputChanged,
-                label = { Text("Codice") },
+                label = { Text("Code") },
                 placeholder = { Text("XXXX-XXXX-XXXX-XXXX-XXXX-XXXX") },
                 singleLine = true,
                 textStyle = CodeStyle.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize),
@@ -119,7 +119,7 @@ fun JoinScreen(
                         IconButton(onClick = { viewModel.onInputChanged(clipboardText) }) {
                             Icon(
                                 Icons.Default.QrCodeScanner,
-                                contentDescription = "Incolla dagli appunti",
+                                contentDescription = "Paste from clipboard",
                             )
                         }
                     }
@@ -146,7 +146,7 @@ fun JoinScreen(
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
                 } else {
-                    Text("Entra nella stanza")
+                    Text("Join the room")
                 }
             }
 
@@ -168,9 +168,9 @@ fun JoinScreen(
                 )
                 Spacer(Modifier.size(14.dp))
                 Column {
-                    Text("Inquadra il QR", style = MaterialTheme.typography.titleMedium)
+                    Text("Scan the QR", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Più veloce che scrivere 24 caratteri",
+                        "Faster than typing 24 characters",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -216,8 +216,8 @@ private fun ValidationLine(validation: JoinViewModel.Validation) {
             Spacer(Modifier.size(8.dp))
             Text(
                 text = buildString {
-                    append(if (validation.kind == dev.shutchat.app.domain.model.InviteKind.GROUP) "Gruppo" else "Chat diretta")
-                    append(" · codice attivo fino al ")
+                    append(if (validation.kind == dev.shutchat.app.domain.model.InviteKind.GROUP) "Group" else "Direct chat")
+                    append(" · code valid until ")
                     append(validation.deadlineLabel)
                 },
                 style = MaterialTheme.typography.bodySmall,

@@ -109,6 +109,8 @@ ksp {
 }
 
 dependencies {
+    implementation(project(":shared"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -136,6 +138,7 @@ dependencies {
 
     implementation(libs.play.services.nearby)
     implementation(libs.zxing.core)
+    implementation(libs.webrtc.android)
 
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)

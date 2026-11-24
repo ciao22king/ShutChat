@@ -86,7 +86,7 @@ fun ScanScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Inquadra il codice") },
+                title = { Text("Point at the code") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
@@ -106,14 +106,14 @@ fun ScanScreen(
         ) {
             if (!hasPermission) {
                 Text(
-                    text = "Serve la fotocamera per leggere il QR. Il codice non viene inviato " +
-                        "da nessuna parte: viene letto sul dispositivo.",
+                    text = "The camera is needed to read the QR. The code is not sent " +
+                        "anywhere: it is read on the device.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(16.dp))
                 Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
-                    Text("Consenti fotocamera")
+                    Text("Allow camera")
                 }
                 return@Column
             }
@@ -130,7 +130,7 @@ fun ScanScreen(
                     onDetected = { payload ->
                         if (handled) return@CameraPreview
                         if (!QrGenerator.looksLikeInvite(payload)) {
-                            Log.d(TAG, "QR ignorato: non è un codice ShutChat")
+                            Log.d(TAG, "QR ignored: it is not a ShutChat code")
                             return@CameraPreview
                         }
                         handled = true
@@ -150,8 +150,8 @@ fun ScanScreen(
 
             Spacer(Modifier.height(16.dp))
             Text(
-                text = "Metti il QR dentro il riquadro. Viene accettato solo se è un codice " +
-                    "ShutChat valido.",
+                text = "Put the QR inside the frame. It is accepted only if it is a valid " +
+                    "ShutChat code.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -200,7 +200,7 @@ private fun CameraPreview(onDetected: (String) -> Unit) {
                     analysis,
                 )
             } catch (e: Exception) {
-                Log.w(TAG, "fotocamera non disponibile", e)
+                Log.w(TAG, "camera not available", e)
             }
         }, ContextCompat.getMainExecutor(context))
 
@@ -230,7 +230,7 @@ private fun analyze(
                 ?.rawValue
                 ?.let(onDetected)
         }
-        .addOnFailureListener { Log.d(TAG, "lettura fallita: ${it.message}") }
+        .addOnFailureListener { Log.d(TAG, "read failed: ${it.message}") }
         .addOnCompleteListener { proxy.close() }
 }
 

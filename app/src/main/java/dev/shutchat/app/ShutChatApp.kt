@@ -1,6 +1,7 @@
 package dev.shutchat.app
 
 import android.app.Application
+import dev.shutchat.app.core.AndroidLog
 import dev.shutchat.app.core.Log
 import dev.shutchat.app.di.AppContainer
 import dev.shutchat.app.service.SessionService
@@ -23,20 +24,21 @@ class ShutChatApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AndroidLog.install()
         instance = this
         container = AppContainer(this)
         container.notifier.ensureChannels()
 
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             runCatching { container.bootstrap() }
-                .onFailure { Log.e(TAG, "bootstrap fallito", it) }
+                .onFailure { Log.e(TAG, "bootstrap failed", it) }
         }
     }
 
     /** Starts the foreground listener, so messages arrive with the app closed. */
     fun startSessionService() {
         runCatching { startForegroundService(android.content.Intent(this, SessionService::class.java)) }
-            .onFailure { Log.w(TAG, "servizio di sessione non avviato", it) }
+            .onFailure { Log.w(TAG, "session service not started", it) }
     }
 
     fun stopSessionService() {

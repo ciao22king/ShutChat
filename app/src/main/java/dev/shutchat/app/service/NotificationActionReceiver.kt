@@ -18,7 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * Handles the "Rispondi" action on a message notification.
+ * Handles the "Reply" action on a message notification.
  *
  * It runs as a receiver rather than through the activity so a reply does not
  * force the UI open, which would defeat the point of a quick reply.
@@ -38,7 +38,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             try {
                 app.container.sendText(chatId, text)
             } catch (e: Exception) {
-                Log.w(TAG, "risposta rapida non inviata", e)
+                Log.w(TAG, "quick reply not sent", e)
             } finally {
                 pending.finish()
             }
@@ -76,13 +76,13 @@ object SessionNotification {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val summary = when {
-            peerCount == 0 -> "In ascolto su $roomCount stanze"
-            peerCount == 1 -> "1 peer collegato"
-            else -> "$peerCount peer collegati"
+            peerCount == 0 -> "Listening su $roomCount stanze"
+            peerCount == 1 -> "1 peer connected"
+            else -> "$peerCount peers connected"
         }
         return NotificationCompat.Builder(context, Notifier.CHANNEL_SESSION)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("ShutChat è attivo")
+            .setContentTitle("ShutChat is running")
             .setContentText(summary)
             .setOngoing(true)
             .setShowWhen(false)

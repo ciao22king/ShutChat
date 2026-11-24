@@ -66,7 +66,7 @@ class MediaStore(private val context: Context) {
         }
         target.takeIf { it.exists() }
     } catch (e: Exception) {
-        Log.w(TAG, "impossibile preparare ${picked.fileName}", e)
+        Log.w(TAG, "cannot prepare ${picked.fileName}", e)
         null
     }
 

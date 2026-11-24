@@ -110,9 +110,9 @@ fun InviteCodeCard(
             Spacer(Modifier.width(6.dp))
             Text(
                 text = when {
-                    permanent -> "Nessuna scadenza: il codice non si spegne mai"
-                    expired -> "Codice spento il $deadlineLabel"
-                    else -> "Si spegne il $deadlineLabel"
+                    permanent -> "No expiry: the code never turns off"
+                    expired -> "Code turned off on $deadlineLabel"
+                    else -> "Turns off on $deadlineLabel"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = urgencyColor,

@@ -152,7 +152,7 @@ class ChatRepository(
         if (days <= 0) return
         val cutoff = clock.nowMillis() - days * 24L * 60 * 60 * 1000
         val removed = db.messageDao().purgeOlderThan(cutoff)
-        if (removed > 0) Log.i(TAG, "rimossi $removed messaggi oltre la finestra di $days giorni")
+        if (removed > 0) Log.i(TAG, "removed $removed messages beyond the $days-day window")
     }
 
     private companion object {
@@ -465,7 +465,7 @@ class InboundHandler(
                 chats.addMember(chat.id, sender.nodeId, sender.displayName)
                 db.chatDao().updateLastMessage(
                     chatId = chat.id,
-                    preview = "${sender.displayName} è entrato",
+                    preview = "${sender.displayName} joined",
                     sender = "",
                     at = clock.nowMillis(),
                 )
