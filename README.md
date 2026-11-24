@@ -1,5 +1,5 @@
 ![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
-
+[![Apache License 2.0](https://img.shields.io/badge/Apache%20License%202.0-FFFFFF?logo=apache&logoColor=D22128)](#)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 
 
