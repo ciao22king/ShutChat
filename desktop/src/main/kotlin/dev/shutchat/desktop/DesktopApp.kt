@@ -383,7 +383,7 @@ class DesktopApp(
 
     companion object {
         private const val TAG = "DesktopApp"
-        private const val APP_VERSION = "1.4.0"
+        private const val APP_VERSION = "1.3.5"
         private const val RETRY_INTERVAL_MILLIS = 20_000L
         private const val MAX_RETRY_AGE_MILLIS = 30L * 24 * 60 * 60 * 1000
     }

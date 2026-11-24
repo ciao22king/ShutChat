@@ -11,7 +11,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-1.4.0}"
+VERSION="${1:-1.3.5}"
 DEB="$ROOT/desktop/build/compose/binaries/main/deb/shutchat_${VERSION}_amd64.deb"
 ICON="$ROOT/desktop/icons/shutchat.png"
 WORK="$ROOT/desktop/build/compose/binaries/main/deb/work"

@@ -60,7 +60,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.AppImage)
             packageName = "shutchat"
-            packageVersion = "1.4.0"
+            packageVersion = "1.3.5"
             description = "ShutChat — peer-to-peer messenger with calls"
             vendor = "ShutChat"
             copyright = "Apache 2.0"

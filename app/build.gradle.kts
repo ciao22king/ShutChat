@@ -19,8 +19,8 @@ android {
         applicationId = "dev.shutchat.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.3.1"
+        versionCode = 6
+        versionName = "1.3.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -54,6 +54,9 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // The WebRTC and barcode native libraries are ~45 MB for four ABIs and
+            // the x86 pair only ever ships to emulators. Phones are ARM.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
