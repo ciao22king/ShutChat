@@ -54,7 +54,7 @@ class ExpiryTest {
         val clock = clockAt(now)
         Expiry.Preset.entries.filter { it.days != null }.forEach { preset ->
             val day = Expiry.presetExpiryDay(preset, clock)!!
-            assertFalse("il preset ${preset.label} è già scaduto", Expiry.isExpired(day, clock))
+            assertFalse("the ${preset.label} preset has already expired", Expiry.isExpired(day, clock))
         }
     }
 

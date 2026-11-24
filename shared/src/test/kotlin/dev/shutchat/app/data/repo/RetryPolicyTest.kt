@@ -40,8 +40,8 @@ class RetryPolicyTest {
         val first = RetryPolicy.delayMillis(1)
         val second = RetryPolicy.delayMillis(2)
         val third = RetryPolicy.delayMillis(3)
-        assertTrue("il secondo tentativo deve attendere piu del primo", second > first)
-        assertTrue("il terzo deve attendere piu del secondo", third > second)
+        assertTrue("the second attempt must wait longer than the first", second > first)
+        assertTrue("the third must wait longer than the second", third > second)
     }
 
     @Test
