@@ -1,3 +1,6 @@
+![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
+
+
 # ShutChat
 
 A peer-to-peer messenger for Android and Linux. Messages and calls travel
