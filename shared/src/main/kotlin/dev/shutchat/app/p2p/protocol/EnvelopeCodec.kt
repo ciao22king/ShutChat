@@ -114,7 +114,7 @@ object Framing {
     }
 
     fun parse(raw: ByteArray): Frame {
-        require(raw.size >= LENGTH_HEADER_SIZE) { "frame troppo corto" }
+        require(raw.size >= LENGTH_HEADER_SIZE) { "frame too short" }
         val length = readInt(raw, 1)
         require(length in ROOM_ID_SIZE..Protocol.MAX_FRAME_BYTES) {
             "lunghezza frame incoerente: $length"
@@ -124,7 +124,7 @@ object Framing {
         val roomId = payload.copyOfRange(0, ROOM_ID_SIZE)
         return when (raw[0].toInt()) {
             TYPE_CHUNK -> {
-                require(payload.size >= ROOM_ID_SIZE + TRANSFER_HEADER_SIZE) { "chunk troppo corto" }
+                require(payload.size >= ROOM_ID_SIZE + TRANSFER_HEADER_SIZE) { "chunk too short" }
                 Frame.Chunk(
                     roomId = roomId,
                     transferId = payload.copyOfRange(ROOM_ID_SIZE, ROOM_ID_SIZE + 16).joinToString("") {

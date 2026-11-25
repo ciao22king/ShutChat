@@ -135,7 +135,7 @@ class MqttClient(
                 return false
             }
             if (returnCode != 0) {
-                lastError = "broker refused the connection (codice $returnCode)"
+                lastError = "broker refused the connection (code $returnCode)"
                 close()
                 return false
             }
@@ -153,7 +153,7 @@ class MqttClient(
             subscribed = true
             true
         } catch (e: Exception) {
-            lastError = e.message ?: "connessione fallita"
+            lastError = e.message ?: "connection failed"
             Log.d(TAG, "connection to $host:$port failed: ${e.message}")
             close()
             false
@@ -190,6 +190,8 @@ class MqttClient(
         return false
     }
 
+    private val writeLock = Any()
+
     private fun nextPacketId(): Int {
         // 16 bit ids, never zero: wraps around without colliding with the
         // subscription ids, which start at 1 and are few.
@@ -216,9 +218,14 @@ class MqttClient(
 
     @Synchronized
     private fun write(bytes: ByteArray) {
-        val stream = output ?: throw IllegalStateException("socket chiuso")
-        stream.write(bytes)
-        stream.flush()
+        val stream = output ?: throw IllegalStateException("socket closed")
+        // One packet at a time: publish is called from several coroutines at
+        // once when a file goes out in chunks, and interleaved bytes on the
+        // socket are a malformed packet the broker drops without a word.
+        synchronized(writeLock) {
+            stream.write(bytes)
+            stream.flush()
+        }
     }
 
     private suspend fun readLoop(input: InputStream) {
@@ -271,7 +278,7 @@ class MqttClient(
                 sessionPresent = packet.sessionPresent
                 connAck?.complete(packet.returnCode)
                 if (packet.returnCode != 0) {
-                    lastError = "broker refused the connection (codice ${packet.returnCode})"
+                    lastError = "broker refused the connection (code ${packet.returnCode})"
                     connected = false
                 }
             }

@@ -99,7 +99,7 @@ fun HomeScreen(
                         Icon(Icons.Default.QrCodeScanner, contentDescription = "Join with a code")
                     }
                     IconButton(onClick = onSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Impostazioni")
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -111,7 +111,7 @@ fun HomeScreen(
             ExtendedFloatingActionButton(
                 onClick = { showAddSheet = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Nuova") },
+                text = { Text("New") },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             )
@@ -181,11 +181,11 @@ fun HomeScreen(
                     TextButton(onClick = {
                         viewModel.setMuted(chat.id, !chat.muted)
                         actionTarget = null
-                    }) { Text(if (chat.muted) "Re-enable notifications" else "Silenzia") }
+                    }) { Text(if (chat.muted) "Re-enable notifications" else "Mute") }
                     TextButton(onClick = {
                         viewModel.setArchived(chat.id, true)
                         actionTarget = null
-                    }) { Text("Archivia") }
+                    }) { Text("Archive") }
                     TextButton(onClick = {
                         actionTarget = null
                         confirmDelete = chat
@@ -212,7 +212,7 @@ fun HomeScreen(
                 TextButton(onClick = {
                     viewModel.delete(chat.id)
                     confirmDelete = null
-                }) { Text("Elimina") }
+                }) { Text("Delete") }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = null }) { Text("Cancel") }

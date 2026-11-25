@@ -230,7 +230,7 @@ fun ExpiredCodeBanner(
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            text = "Rigenera",
+            text = "Regenerate",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
@@ -273,7 +273,7 @@ fun GroupInviteHint(
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = "Aggiungi",
+            text = "Add",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier

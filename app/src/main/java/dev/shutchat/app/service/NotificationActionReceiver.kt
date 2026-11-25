@@ -76,7 +76,7 @@ object SessionNotification {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val summary = when {
-            peerCount == 0 -> "Listening su $roomCount stanze"
+            peerCount == 0 -> "Listening on $roomCount rooms"
             peerCount == 1 -> "1 peer connected"
             else -> "$peerCount peers connected"
         }
@@ -87,7 +87,7 @@ object SessionNotification {
             .setOngoing(true)
             .setShowWhen(false)
             .setContentIntent(open)
-            .addAction(R.drawable.ic_notification, "Interrompi", stop)
+            .addAction(R.drawable.ic_notification, "Stop", stop)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }

@@ -166,10 +166,10 @@ class Notifier(private val context: Context) {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val kind = if (video) "videochiamata" else "chiamata"
+        val kind = if (video) "Video call" else "Call"
         val notification = NotificationCompat.Builder(context, CHANNEL_CALLS)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("$kind in arrivo")
+            .setContentTitle("$kind arriving")
             .setContentText(peerName.ifBlank { "Someone" })
             .setContentIntent(pending)
             .setOngoing(true)

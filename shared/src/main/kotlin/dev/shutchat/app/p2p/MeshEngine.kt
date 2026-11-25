@@ -501,7 +501,13 @@ class MeshEngine(
     ) {
         when (parsed) {
             is Framing.Frame.Chunk -> {
-                val body = runCatching { RoomCrypto.decrypt(room.transferKey, parsed.body, parsed.roomId) }
+                // The sender seals each chunk with the transfer id as AAD, not
+                // the room id: the room id is already in the clear in the frame
+                // header, and binding to the transfer stops a chunk from one
+                // transfer being replayed into another.
+                val body = runCatching {
+                    RoomCrypto.decrypt(room.transferKey, parsed.body, parsed.transferId.hexToBytes())
+                }
                     .getOrElse {
                         decryptFailures.incrementAndGet()
                         return
@@ -717,7 +723,7 @@ class MeshEngine(
         private const val PING_INTERVAL_MILLIS = 20_000L
 
         /** Placeholder sender for frames that name no author, such as a roster. */
-        const val UNKNOWN_SENDER = "sconosciuto"
+        const val UNKNOWN_SENDER = "unknown"
     }
 }
 

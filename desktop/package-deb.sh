@@ -11,7 +11,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-1.3.5}"
+VERSION="${1:-1.4.0}"
 DEB="$ROOT/desktop/build/compose/binaries/main/deb/shutchat_${VERSION}_amd64.deb"
 ICON="$ROOT/desktop/icons/shutchat.png"
 WORK="$ROOT/desktop/build/compose/binaries/main/deb/work"
@@ -40,6 +40,16 @@ Categories=Network;InstantMessaging;Chat;
 Keywords=chat;messenger;call;p2p;
 StartupWMClass=dev.shutchat.desktop.MainKt
 DESKTOP
+
+# jpackage's maintainer scripts call xdg-desktop-menu and abort the whole
+# install when xdg-utils is missing. The menu entry ships in
+# /usr/share/applications already, so the call only matters on desktops that
+# keep their own copy: make it optional instead of fatal.
+for script in postinst prerm; do
+  [ -f "$WORK/DEBIAN/$script" ] || continue
+  sed -i -e 's|^xdg-desktop-menu |if command -v xdg-desktop-menu >/dev/null 2>/dev/null; then xdg-desktop-menu |' \
+         -e 's,^if command -v xdg-desktop-menu .*$,& || true; fi,' "$WORK/DEBIAN/$script"
+done
 
 dpkg-deb --build --root-owner-group "$WORK" "$DEB" >/dev/null
 echo "wrote $DEB"

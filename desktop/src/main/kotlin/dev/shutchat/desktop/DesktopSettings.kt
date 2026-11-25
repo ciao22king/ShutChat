@@ -29,6 +29,26 @@ class DesktopSettings(private val dir: Path = defaultDir()) {
     var lanDiscovery: Boolean
         private set
 
+    /** "system", "light" or "dark". */
+    var theme: String
+        private set
+
+    var readReceipts: Boolean
+        private set
+
+    var typingIndicator: Boolean
+        private set
+
+    var notifications: Boolean
+        private set
+
+    var forwarding: Boolean
+        private set
+
+    /** Days of transcript to keep; 0 keeps everything. */
+    var retentionDays: Int
+        private set
+
     init {
         Files.createDirectories(dir)
         if (Files.exists(file)) {
@@ -46,9 +66,25 @@ class DesktopSettings(private val dir: Path = defaultDir()) {
         displayName = props.getProperty(KEY_NAME) ?: System.getProperty("user.name").orEmpty()
         publicRelay = props.getProperty(KEY_RELAY)?.toBooleanStrictOrNull() ?: true
         lanDiscovery = props.getProperty(KEY_LAN)?.toBooleanStrictOrNull() ?: true
+        theme = props.getProperty(KEY_THEME) ?: "dark"
+        readReceipts = props.getProperty(KEY_RECEIPTS)?.toBooleanStrictOrNull() ?: true
+        typingIndicator = props.getProperty(KEY_TYPING)?.toBooleanStrictOrNull() ?: true
+        notifications = props.getProperty(KEY_NOTIFY)?.toBooleanStrictOrNull() ?: true
+        forwarding = props.getProperty(KEY_FORWARD)?.toBooleanStrictOrNull() ?: true
+        retentionDays = props.getProperty(KEY_RETENTION)?.toIntOrNull() ?: 0
     }
 
-    fun update(displayName: String? = null, publicRelay: Boolean? = null, lanDiscovery: Boolean? = null) {
+    fun update(
+        displayName: String? = null,
+        publicRelay: Boolean? = null,
+        lanDiscovery: Boolean? = null,
+        theme: String? = null,
+        readReceipts: Boolean? = null,
+        typingIndicator: Boolean? = null,
+        notifications: Boolean? = null,
+        forwarding: Boolean? = null,
+        retentionDays: Int? = null,
+    ) {
         displayName?.trim()?.takeIf { it.isNotEmpty() }?.let {
             this.displayName = it
             props.setProperty(KEY_NAME, it)
@@ -60,6 +96,30 @@ class DesktopSettings(private val dir: Path = defaultDir()) {
         lanDiscovery?.let {
             this.lanDiscovery = it
             props.setProperty(KEY_LAN, it.toString())
+        }
+        theme?.let {
+            this.theme = it
+            props.setProperty(KEY_THEME, it)
+        }
+        readReceipts?.let {
+            this.readReceipts = it
+            props.setProperty(KEY_RECEIPTS, it.toString())
+        }
+        typingIndicator?.let {
+            this.typingIndicator = it
+            props.setProperty(KEY_TYPING, it.toString())
+        }
+        notifications?.let {
+            this.notifications = it
+            props.setProperty(KEY_NOTIFY, it.toString())
+        }
+        forwarding?.let {
+            this.forwarding = it
+            props.setProperty(KEY_FORWARD, it.toString())
+        }
+        retentionDays?.let {
+            this.retentionDays = it
+            props.setProperty(KEY_RETENTION, it.toString())
         }
         save()
     }
@@ -73,6 +133,12 @@ class DesktopSettings(private val dir: Path = defaultDir()) {
         private const val KEY_NAME = "display.name"
         private const val KEY_RELAY = "relay.public"
         private const val KEY_LAN = "lan.discovery"
+        private const val KEY_THEME = "ui.theme"
+        private const val KEY_RECEIPTS = "chat.readReceipts"
+        private const val KEY_TYPING = "chat.typing"
+        private const val KEY_NOTIFY = "ui.notifications"
+        private const val KEY_FORWARD = "net.forwarding"
+        private const val KEY_RETENTION = "chat.retentionDays"
 
         fun defaultDir(): Path = Paths.get(
             System.getenv("XDG_CONFIG_HOME") ?: (System.getProperty("user.home") + "/.config"),

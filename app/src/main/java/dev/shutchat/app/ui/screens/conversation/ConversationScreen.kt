@@ -240,9 +240,9 @@ fun ConversationScreen(
                                 state.connectedPeers > 0 -> {
                                     val count = state.members.count { !it.isSelf }
                                     if (chat?.isGroup == true) {
-                                        "${state.members.size} membri · ${state.connectedPeers} collegati"
+                                        "${state.members.size} members · ${state.connectedPeers} connected"
                                     } else {
-                                        "Collegato"
+                                        "Connected"
                                     }
                                 }
 
@@ -258,7 +258,7 @@ fun ConversationScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -518,7 +518,7 @@ fun ConversationScreen(
                         }) {
                             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(10.dp))
-                            Text("Modifica")
+                            Text("Edit")
                         }
                     }
                     TextButton(onClick = {
@@ -574,7 +574,7 @@ fun ConversationScreen(
                 TextButton(onClick = {
                     viewModel.delete(message)
                     confirmDelete = null
-                }) { Text("Elimina") }
+                }) { Text("Delete") }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = null }) { Text("Cancel") }
@@ -616,7 +616,7 @@ private fun Composer(
             ) {
                 Icon(
                     Icons.Default.AttachFile,
-                    contentDescription = "Allega",
+                    contentDescription = "Attach",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -702,7 +702,7 @@ private fun Composer(
         ) {
             Icon(
                 imageVector = if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Default.Mic,
-                contentDescription = if (canSend) "Invia" else "Hold to record",
+                contentDescription = if (canSend) "Send" else "Hold to record",
                 tint = if (canSend) {
                     MaterialTheme.colorScheme.onPrimary
                 } else {
@@ -809,7 +809,7 @@ private fun VoicePreviewBar(
             )
         }
         Text(
-            text = "Elimina",
+            text = "Delete",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier
@@ -819,7 +819,7 @@ private fun VoicePreviewBar(
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            text = "Invia",
+            text = "Send",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
@@ -900,7 +900,7 @@ private fun EmptyConversationHint(connected: Boolean, modifier: Modifier = Modif
         Text(
             text = if (connected) {
                 "Go ahead: messages go device to device, without passing through " +
-                    "nessun server."
+                    "any server."
             } else {
                 "This room exists only on the devices that hold the code. To receive " +
                     "you must be on the same Wi-Fi network or close by, with Bluetooth on."

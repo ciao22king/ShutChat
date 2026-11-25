@@ -98,7 +98,7 @@ fun CreateChatScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { if (reveal == null) viewModel.back() else onBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -312,7 +312,7 @@ private fun PresetRow(preset: Expiry.Preset, selected: Boolean, onClick: () -> U
         Expiry.Preset.ONE_WEEK -> "7 days"
         Expiry.Preset.ONE_MONTH -> "30 days"
         Expiry.Preset.THREE_MONTHS -> "90 days"
-        Expiry.Preset.NEVER -> "Infinito"
+        Expiry.Preset.NEVER -> "Never"
     }
     val hint = when (preset) {
         Expiry.Preset.NEVER -> "The code never turns off"

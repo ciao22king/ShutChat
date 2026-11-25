@@ -54,7 +54,7 @@ object ShareUtils {
             putExtra(Intent.EXTRA_TEXT, text)
             subject?.let { putExtra(Intent.EXTRA_SUBJECT, it) }
         }
-        context.startActivity(Intent.createChooser(intent, subject ?: "Condividi"))
+        context.startActivity(Intent.createChooser(intent, subject ?: "Share"))
     }
 
     /** Renders an invite as the deep link a QR code should contain. */

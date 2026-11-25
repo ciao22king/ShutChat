@@ -82,10 +82,10 @@ fun SettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Impostazioni") },
+                title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -104,7 +104,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             SectionHeader("Your profile")
 
             SettingRow(
-                title = "Nome",
+                title = "Name",
                 subtitle = state.displayName.ifBlank { "Not set" },
                 onClick = {
                     nameDraft = state.displayName
@@ -113,7 +113,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
             SettingRow(
                 title = "Status",
-                subtitle = state.status.ifBlank { "Disponibile" },
+                subtitle = state.status.ifBlank { "Available" },
             )
             SettingRow(
                 title = "Device identifier",
@@ -122,14 +122,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                     IconButton(onClick = { clipboard.setText(AnnotatedString(nodeId)) }) {
                         Icon(
                             Icons.Default.ContentCopy,
-                            contentDescription = "Copia",
+                            contentDescription = "Copy",
                             modifier = Modifier.size(18.dp),
                         )
                     }
                 },
             )
 
-            SectionHeader("Aspetto")
+            SectionHeader("Appearance")
 
             SettingSwitch(
                 title = "Follow the system",
@@ -151,7 +151,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onCheckedChange = viewModel::setDynamicColor,
             )
 
-            SectionHeader("Conversazione")
+            SectionHeader("Conversation")
 
             SettingSwitch(
                 title = "Read receipts",
@@ -189,23 +189,23 @@ fun SettingsScreen(onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            SectionHeader("Notifiche")
+            SectionHeader("Notifications")
 
             SettingSwitch(
-                title = "Notifiche",
+                title = "Notifications",
                 subtitle = "Alerts for new messages",
                 checked = state.notificationsEnabled,
                 onCheckedChange = viewModel::setNotificationsEnabled,
             )
             SettingSwitch(
-                title = "Suoni",
+                title = "Sounds",
                 subtitle = "A tone for every message",
                 checked = state.messageSounds,
                 enabled = state.notificationsEnabled,
                 onCheckedChange = viewModel::setMessageSounds,
             )
             SettingSwitch(
-                title = "Vibrazione",
+                title = "Vibration",
                 subtitle = "Vibrate on new messages",
                 checked = state.vibration,
                 enabled = state.notificationsEnabled,
@@ -251,7 +251,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onCheckedChange = viewModel::setPublicRelay,
             )
 
-            SectionHeader("Aggiornamenti")
+            SectionHeader("Updates")
 
             UpdateRow(
                 version = state.appVersion,
@@ -313,7 +313,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 OutlinedTextField(
                     value = nameDraft,
                     onValueChange = { nameDraft = it },
-                    label = { Text("Nome") },
+                    label = { Text("Name") },
                     singleLine = true,
                 )
             },
@@ -321,7 +321,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 TextButton(onClick = {
                     viewModel.setDisplayName(nameDraft.trim())
                     editingName = false
-                }) { Text("Salva") }
+                }) { Text("Save") }
             },
             dismissButton = {
                 TextButton(onClick = { editingName = false }) { Text("Cancel") }
@@ -343,7 +343,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 TextButton(onClick = {
                     viewModel.clearAllMessages()
                     confirmClear = false
-                }) { Text("Cancella") }
+                }) { Text("Delete") }
             },
             dismissButton = {
                 TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
@@ -416,7 +416,7 @@ private fun UpdateRow(
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(if (checking) "Controllo…" else "Check for updates")
+                Text(if (checking) "Checking…" else "Check for updates")
             }
         }
         val message = when (updateState) {
@@ -451,7 +451,7 @@ private fun UpdateRow(
             // corrupt download. Anyone coming from a build made before the signing key
             // was pinned will hit exactly that, so say what to do about it.
             Text(
-                text = "Se l'installazione dice \"App not installed\", disinstalla ShutChat e " +
+                text = "If the install says \"App not installed\", uninstall ShutChat and " +
                     "reinstall: very old versions were signed with another key. " +
                     "Messages stay on the phone until you uninstall.",
                 style = MaterialTheme.typography.bodySmall,
@@ -549,8 +549,8 @@ private fun DiagnosticsBlock(
             label = "Local network",
             value = when {
                 !diagnostics.lanActive -> "spenta"
-                diagnostics.lanPort != 0 -> "attiva sulla porta ${diagnostics.lanPort}"
-                else -> "in avvio"
+                diagnostics.lanPort != 0 -> "active on port ${diagnostics.lanPort}"
+                else -> "starting"
             },
         )
         DiagnosticLine(

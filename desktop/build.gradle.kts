@@ -35,6 +35,8 @@ dependencies {
     implementation(compose.materialIconsExtended)
     implementation(libs.kotlinx.coroutines.swing)
 
+    implementation(libs.zxing.core)
+
     implementation(libs.webrtc.java)
     // Prebuilt native libwebrtc for this platform; the classes live in the jar
     // above, the .so files in this classifier.
@@ -60,7 +62,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.AppImage)
             packageName = "shutchat"
-            packageVersion = "1.3.5"
+            packageVersion = "1.4.0"
             description = "ShutChat — peer-to-peer messenger with calls"
             vendor = "ShutChat"
             copyright = "Apache 2.0"

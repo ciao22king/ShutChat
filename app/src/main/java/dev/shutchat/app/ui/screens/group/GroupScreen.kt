@@ -87,7 +87,7 @@ fun GroupScreen(
                 title = { Text("Group details") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -95,7 +95,7 @@ fun GroupScreen(
                         newName = state.chat?.title.orEmpty()
                         renaming = true
                     }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Rinomina")
+                        Icon(Icons.Default.Edit, contentDescription = "Rename")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -149,7 +149,7 @@ fun GroupScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ActionButton(
                         icon = Icons.Default.Share,
-                        label = "Condividi",
+                        label = "Share",
                         onClick = {
                             chat?.inviteCode?.let { ShareUtils.shareCode(context, it, chat.title) }
                         },
@@ -165,7 +165,7 @@ fun GroupScreen(
             }
 
             item {
-                SectionHeader("Membri")
+                SectionHeader("Members")
                 Text(
                     text = "These are the devices that used the code. There is no central " +
                         "list: if someone leaves, they disappear here the next time they connect.",
@@ -206,7 +206,7 @@ fun GroupScreen(
                 OutlinedTextField(
                     value = newName,
                     onValueChange = { newName = it },
-                    label = { Text("Nome") },
+                    label = { Text("Name") },
                     singleLine = true,
                 )
             },
@@ -214,7 +214,7 @@ fun GroupScreen(
                 TextButton(onClick = {
                     viewModel.rename(newName.trim())
                     renaming = false
-                }) { Text("Salva") }
+                }) { Text("Save") }
             },
             dismissButton = {
                 TextButton(onClick = { renaming = false }) { Text("Cancel") }
@@ -231,7 +231,7 @@ fun GroupScreen(
     removeTarget?.let { member ->
         AlertDialog(
             onDismissRequest = { removeTarget = null },
-            title = { Text("Rimuovere ${member.displayName}?") },
+            title = { Text("Remove ${member.displayName}?") },
             text = {
                 Text(
                     "They will disappear from this list. If they still have the code they can come back, because " +
@@ -242,7 +242,7 @@ fun GroupScreen(
                 TextButton(onClick = {
                     viewModel.remove(member.nodeId)
                     removeTarget = null
-                }) { Text("Rimuovi") }
+                }) { Text("Remove") }
             },
             dismissButton = {
                 TextButton(onClick = { removeTarget = null }) { Text("Cancel") }
@@ -274,7 +274,7 @@ private fun MemberRow(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = if (member.isSelf) "${member.displayName} (tu)" else member.displayName,
+                    text = if (member.isSelf) "${member.displayName} (you)" else member.displayName,
                     style = MaterialTheme.typography.titleMedium,
                 )
                 if (isOwner) {
@@ -294,7 +294,7 @@ private fun MemberRow(
             IconButton(onClick = onRemove) {
                 Icon(
                     Icons.Default.PersonRemove,
-                    contentDescription = "Rimuovi",
+                    contentDescription = "Remove",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

@@ -1,10 +1,7 @@
-![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
-[![Apache License 2.0](https://img.shields.io/badge/Apache%20License%202.0-FFFFFF?logo=apache&logoColor=D22128)](#)
-
-
+![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white&style=for-the-badge)
+[![Apache License 2.0](https://img.shields.io/badge/Apache%20License%202.0-FFFFFF?logo=apache&logoColor=D22128&style=for-the-badge)](#)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
-
 
 # ShutChat
 
@@ -72,7 +69,7 @@ with no push server a message can only arrive if something is awake to receive i
 | --------- | -------- |
 | `shared`  | Protocol, crypto, invite codec, mesh engine, transports, call state machine. Plain Kotlin/JVM, no Android types. |
 | `app`     | Android client: Compose UI, foreground service, Nearby Connections, WebRTC media. |
-| `desktop` | Linux client: Compose for Desktop window, JSON file store, WebRTC media via `webrtc-java`. |
+| `desktop` | Linux client: Compose for Desktop UI (chats, group details, settings, calls), JSON store under the XDG directories, file/voice transfer, desktop notifications, WebRTC media via `webrtc-java`. |
 
 Android-specific pieces (multicast lock, Nearby Connections) sit behind small
 interfaces in `shared`, so the same mesh runs on a JVM without an emulator.
@@ -92,6 +89,31 @@ interfaces in `shared`, so the same mesh runs on a JVM without an emulator.
 - Audio and video calls, with mute, speaker and a ring timeout
 - Light and dark theme with Material You dynamic colour
 - Settings with a check for updates against the release feed
+
+The Android app and the Linux client speak the same protocol, so a code created
+on one opens the same room on the other.
+
+## Desktop client
+
+The Linux client is a first-class member of the mesh, not a companion: it
+creates and joins rooms, relays for others, sends photos, files and voice notes,
+and takes calls.
+
+| Screen | What it does |
+| ------ | ------------ |
+| Home | chat list with search, archive, presence and the relay/local-network status line |
+| New / Join | create a direct chat or a group with an expiry, or paste a code |
+| Conversation | text, attachments with progress, replies, reactions, edits, deletes, voice notes, typing, receipts |
+| Group details | QR code, the code as text, expiry, member list, rename, leave |
+| Settings | name, status, theme, receipts, retention, notifications, transports, forwarding, diagnostics, update check |
+
+State lives in plain JSON under `~/.config/shutchat` and `~/.local/share/shutchat`;
+attachments and voice notes go to the same place, so a backup is a copy of two
+directories.
+
+Calls need a working sound device. On a machine without PulseAudio or ALSA the
+client falls back to a silent audio device, connects the call anyway and says so
+on screen, which keeps the app usable on headless boxes and in CI.
 
 ## Build
 
@@ -128,15 +150,19 @@ desktop/package-appimage.sh
 
 Both wrap a jlink runtime, so the target machine does not need Java.
 
-### Integration test against a real broker
+### Integration tests against a real broker
 
-The relay is the one part that cannot be proven offline. There is an opt-in test
-that publishes a frame through a public broker and reads it back on a second
-client:
+The relay is the one part that cannot be proven offline. Two opt-in suites start
+two real clients against the public broker:
 
 ```bash
 ./gradlew :desktop:test --tests '*RelayRoundTripIT*' -Dshutchat.it=1
+./gradlew :desktop:test --tests '*DesktopRelayParityTest*' -Dshutchat.it=1
 ```
+
+`DesktopRelayParityTest` covers the paths the two clients must agree on: a text
+message, a file of several chunks, a call that reaches the media path on both
+sides, and a chat that survives a restart.
 
 The release build is signed with the debug key so the APK can be sideloaded
 without a Play account. For a real release, replace the `signingConfig` in
@@ -149,7 +175,9 @@ microphone permissions; location is requested only on Android 11 and below,
 where the platform requires it for Wi-Fi scanning.
 
 The desktop client needs a Linux x86-64 machine with glibc and an X11 or Wayland
-session. Calls need a microphone; video calls need a camera.
+session. It ships its own Java runtime, so no JDK is needed. Calls use the
+default sound device and are audio only; a video call started from Android still
+connects and simply carries audio.
 
 ## Licence
 

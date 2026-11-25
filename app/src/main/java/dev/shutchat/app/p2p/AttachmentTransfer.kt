@@ -128,7 +128,7 @@ class AttachmentTransfer(
                     body = sealed,
                 )
                 if (mesh.sendFrame(roomIdHex, frame) == 0) {
-                    Log.d(TAG, "trasferimento $attachmentId interrotto al chunk $index")
+                    Log.d(TAG, "transfer $attachmentId stopped at chunk $index")
                     mesh.broadcast(
                         TransferCancel(roomIdHex, transferId.toHex(), "peer unreachable"),
                     )
@@ -196,7 +196,7 @@ class AttachmentTransfer(
                     state.handle.seek(chunk.index.toLong() * Protocol.CHUNK_SIZE)
                     state.handle.write(chunk.body)
                 }
-            }.onFailure { Log.w(TAG, "chunk write ${chunk.index} fallita", it) }
+            }.onFailure { Log.w(TAG, "chunk write ${chunk.index} failed", it) }
 
             val complete = state.received.all { it }
             progress.tryEmit(

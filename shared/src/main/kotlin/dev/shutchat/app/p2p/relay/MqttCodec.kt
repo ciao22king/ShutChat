@@ -125,7 +125,7 @@ object MqttCodec {
 
     /** Base-128 varint, least significant group first. */
     fun remainingLength(length: Int): ByteArray {
-        require(length in 0..MAX_REMAINING_LENGTH) { "lunghezza fuori intervallo" }
+        require(length in 0..MAX_REMAINING_LENGTH) { "length out of range" }
         var value = length
         val out = ArrayList<Byte>(4)
         do {

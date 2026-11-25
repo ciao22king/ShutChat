@@ -57,7 +57,7 @@ object Expiry {
         ONE_WEEK("7 days", 7),
         ONE_MONTH("30 days", 30),
         THREE_MONTHS("90 days", 90),
-        NEVER("Mai", null),
+        NEVER("Never", null),
     }
 
     fun presetExpiryDay(preset: Preset, clock: Clock): Int? {
@@ -83,7 +83,7 @@ object Expiry {
     }
 
     private val MONTHS = listOf(
-        "gen", "feb", "mar", "apr", "mag", "giu",
-        "lug", "ago", "set", "ott", "nov", "dic",
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     )
 }

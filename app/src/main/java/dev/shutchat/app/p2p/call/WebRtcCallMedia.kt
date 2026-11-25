@@ -329,7 +329,7 @@ class AndroidCallMedia(
     }
 
     private fun fail(reason: String?) {
-        Log.w(TAG, "media: ${reason ?: "errore sconosciuto"}")
+        Log.w(TAG, "media: ${reason ?: "unknown error"}")
         onFailed(reason ?: "media error")
     }
 

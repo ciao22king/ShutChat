@@ -13,6 +13,8 @@ import dev.onvoid.webrtc.RTCPeerConnectionState
 import dev.onvoid.webrtc.RTCSdpType
 import dev.onvoid.webrtc.RTCSessionDescription
 import dev.onvoid.webrtc.SetSessionDescriptionObserver
+import dev.onvoid.webrtc.media.audio.AudioDeviceModule
+import dev.onvoid.webrtc.media.audio.AudioLayer
 import dev.onvoid.webrtc.media.audio.AudioOptions
 import dev.onvoid.webrtc.media.audio.AudioTrack
 import dev.onvoid.webrtc.media.audio.AudioTrackSource
@@ -26,9 +28,9 @@ import dev.shutchat.app.p2p.protocol.CallMedia
 /**
  * Desktop side of a call, on top of the native libwebrtc Java wrapper.
  *
- * Audio only: a desktop has no camera in the mesh's trust model, and a
- * videochiamata started from the phone still connects — the answer simply
- * declines the video section, which WebRTC handles without renegotiation.
+ * Audio only: a desktop has no camera in the mesh's trust model, and a video
+ * call started from the phone still connects — the answer simply declines the
+ * video section, which WebRTC handles without renegotiation.
  *
  * The native library is loaded lazily and its absence is not fatal: if it cannot
  * load, [isSupported] is false and the caller tells the user calls are
@@ -51,8 +53,23 @@ class DesktopCallMedia(
     private val onFailed: (String) -> Unit,
 ) : CallMediaSession {
 
+    /**
+     * False when libwebrtc had to fall back to a silent audio device: the call
+     * still connects, the user just cannot hear it.
+     */
+    @Volatile
+    var audioAvailable: Boolean = true
+        private set
+
     private val factory: PeerConnectionFactory? = runCatching { PeerConnectionFactory() }
-        .onFailure { Log.w(TAG, "libwebrtc non caricabile: ${it.message}") }
+        .recoverCatching { failure ->
+            // No PulseAudio/ALSA here: a call without sound is better than no
+            // call at all, and it keeps the app usable on headless boxes.
+            Log.w(TAG, "no audio device, using a silent one: ${failure.message}")
+            audioAvailable = false
+            PeerConnectionFactory(AudioDeviceModule(AudioLayer.kDummyAudio))
+        }
+        .onFailure { Log.w(TAG, "libwebrtc could not be loaded: ${it.message}") }
         .getOrNull()
 
     override val isSupported: Boolean get() = factory != null
@@ -166,7 +183,7 @@ class DesktopCallMedia(
         }
 
         val connection = factory.createPeerConnection(config, observer) ?: run {
-            fail("peer connection non creata")
+            fail("peer connection not created")
             return null
         }
         val source = factory.createAudioSource(
@@ -193,7 +210,7 @@ class DesktopCallMedia(
         override fun onConnectionChange(state: RTCPeerConnectionState) {
             when (state) {
                 RTCPeerConnectionState.CONNECTED -> onConnected()
-                RTCPeerConnectionState.FAILED -> fail("connessione persa")
+                RTCPeerConnectionState.FAILED -> fail("connection lost")
                 else -> Unit
             }
         }

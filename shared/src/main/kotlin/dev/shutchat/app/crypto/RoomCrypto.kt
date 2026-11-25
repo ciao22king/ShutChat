@@ -87,7 +87,7 @@ object RoomCrypto {
 
     /** @throws GeneralSecurityException when the payload was tampered with. */
     fun decrypt(key: ByteArray, payload: ByteArray, aad: ByteArray? = null): ByteArray {
-        require(payload.size > NONCE_SIZE) { "payload troppo corto" }
+        require(payload.size > NONCE_SIZE) { "payload too short" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(
             Cipher.DECRYPT_MODE,

@@ -1,6 +1,7 @@
 package dev.shutchat.desktop
 
 import dev.shutchat.app.domain.model.Chat
+import dev.shutchat.app.domain.model.ChatMember
 import dev.shutchat.app.domain.model.Message
 import java.nio.file.Files
 import java.nio.file.Path
@@ -13,6 +14,8 @@ import kotlinx.serialization.json.Json
 data class DesktopState(
     val chats: List<Chat> = emptyList(),
     val messages: Map<String, List<Message>> = emptyMap(),
+    val members: Map<String, List<ChatMember>> = emptyMap(),
+    val drafts: Map<String, String> = emptyMap(),
 )
 
 /**

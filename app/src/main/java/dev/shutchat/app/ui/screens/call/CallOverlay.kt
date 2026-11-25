@@ -86,12 +86,12 @@ fun CallOverlay(container: AppContainer) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         InitialsAvatar(
                             seed = call.peerNodeId ?: "call",
-                            name = call.peerName.ifBlank { "Callta" },
+                            name = call.peerName.ifBlank { "Call" },
                             size = 96.dp,
                         )
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            text = call.peerName.ifBlank { "Callta" },
+                            text = call.peerName.ifBlank { "Call" },
                             style = MaterialTheme.typography.headlineSmall,
                             color = Color.White,
                         )
@@ -104,7 +104,7 @@ fun CallOverlay(container: AppContainer) {
                         CallPhase.RINGING ->
                             if (call.media == CallMedia.VIDEO) "Incoming video call" else "Incoming call"
 
-                        CallPhase.CONNECTING -> "Connessione..."
+                        CallPhase.CONNECTING -> "Connecting..."
                         CallPhase.ACTIVE -> Format.duration(call.elapsedMillis(now))
                         CallPhase.ENDED -> call.endReason?.label ?: "Call ended"
                         CallPhase.IDLE -> ""
@@ -150,7 +150,7 @@ fun CallOverlay(container: AppContainer) {
                         CallPhase.CONNECTING, CallPhase.ACTIVE -> {
                             CallAction(
                                 icon = if (call.muted) Icons.Default.MicOff else Icons.Default.Mic,
-                                label = if (call.muted) "Attiva" else "Muto",
+                                label = if (call.muted) "Unmute" else "Mute",
                                 tint = if (call.muted) Color(0xFFE5484D) else Color(0xFF2A2A33),
                                 onClick = { container.calls.toggleMute() },
                             )

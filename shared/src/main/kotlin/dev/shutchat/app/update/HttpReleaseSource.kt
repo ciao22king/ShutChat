@@ -38,7 +38,7 @@ object HttpReleaseSource : ReleaseSource {
             }
             connection.inputStream.bufferedReader().use { it.readText() }
         } catch (e: Exception) {
-            Log.d(TAG, "richiesta fallita: ${e.message}")
+            Log.d(TAG, "request failed: ${e.message}")
             null
         } finally {
             connection?.disconnect()

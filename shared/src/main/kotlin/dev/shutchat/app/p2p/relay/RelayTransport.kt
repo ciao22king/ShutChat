@@ -119,7 +119,7 @@ class RelayTransport(
                     session.awaitClosed()
                     pump.cancel()
                     connected = false
-                    if (running) lastError = "connessione al relay interrotta"
+                    if (running) lastError = "relay connection dropped"
                 } else {
                     lastError = session.lastError ?: "relay unreachable"
                     // Move on to the next broker: a dead endpoint should cost one

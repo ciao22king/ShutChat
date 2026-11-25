@@ -11,7 +11,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-1.3.5}"
+VERSION="${1:-1.4.0}"
 APP_SRC="$ROOT/desktop/build/compose/binaries/main/app/shutchat"
 OUT_DIR="$ROOT/desktop/build/compose/binaries/main/appimage"
 ICON="$ROOT/desktop/icons/shutchat.png"

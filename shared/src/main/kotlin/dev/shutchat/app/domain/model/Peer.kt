@@ -5,7 +5,7 @@ data class LocalProfile(
     val nodeId: String,
     val displayName: String,
     val avatarSeed: String,
-    val status: String = "Disponibile",
+    val status: String = "Available",
     /** Room codes this device currently advertises itself for. */
     val activeRoomIds: Set<String> = emptySet(),
 )

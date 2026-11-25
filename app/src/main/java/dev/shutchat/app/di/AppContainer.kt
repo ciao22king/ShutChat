@@ -207,7 +207,7 @@ class AppContainer(private val context: Context) {
                         nodeId = settings.nodeId(),
                     ),
                 )
-            }.onFailure { Log.w("AppContainer", "avviso di uscita not sent", it) }
+            }.onFailure { Log.w("AppContainer", "leave notice not sent", it) }
         }
 
         val orphans = runCatching { chatFactory.deleteChat(chatId) }

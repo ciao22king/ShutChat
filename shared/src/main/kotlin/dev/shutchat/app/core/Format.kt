@@ -14,12 +14,12 @@ object Format {
         24L to "d",
     )
 
-    /** "in 4 days", "in 3 ore", "scaduto". Used on invite cards. */
+    /** "in 4 days", "in 3 hours", "expired". Used on invite cards. */
     fun describeRemaining(expiresAt: Long?, now: Long): String {
         if (expiresAt == null) return "no expiry"
         val delta = expiresAt - now
-        if (delta <= 0) return "scaduto"
-        return "fra " + describeDuration(delta)
+        if (delta <= 0) return "expired"
+        return "in " + describeDuration(delta)
     }
 
     /** Coarse duration, biggest unit only: "2 days", "5 hours", "12 minutes". */
@@ -43,7 +43,7 @@ object Format {
         val date = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
         val hour = date.get(java.util.Calendar.HOUR_OF_DAY)
         val minute = date.get(java.util.Calendar.MINUTE)
-        return String.format(Locale.ITALY, "%02d:%02d", hour, minute)
+        return String.format(Locale.ROOT, "%02d:%02d", hour, minute)
     }
 
     /** Timestamp separator inside a conversation. */
@@ -68,24 +68,24 @@ object Format {
     }
 
     private val MONTHS = listOf(
-        "gen", "feb", "mar", "apr", "mag", "giu",
-        "lug", "ago", "set", "ott", "nov", "dic",
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     )
 
     fun fileSize(bytes: Long): String {
         if (bytes < 1024) return "$bytes B"
         val kb = bytes / 1024.0
-        if (kb < 1024) return String.format(Locale.ITALY, "%.0f kB", kb)
+        if (kb < 1024) return String.format(Locale.ROOT, "%.0f kB", kb)
         val mb = kb / 1024.0
-        if (mb < 1024) return String.format(Locale.ITALY, "%.1f MB", mb)
-        return String.format(Locale.ITALY, "%.2f GB", mb / 1024.0)
+        if (mb < 1024) return String.format(Locale.ROOT, "%.1f MB", mb)
+        return String.format(Locale.ROOT, "%.2f GB", mb / 1024.0)
     }
 
     fun duration(millis: Long): String {
         val totalSeconds = millis / 1000
         val minutes = totalSeconds / 60
         val seconds = totalSeconds % 60
-        return String.format(Locale.ITALY, "%d:%02d", minutes, seconds)
+        return String.format(Locale.ROOT, "%d:%02d", minutes, seconds)
     }
 
     /** Stable pastel index derived from a chat id, used for avatar tints. */
@@ -100,8 +100,8 @@ object Format {
         val words = name.trim().split(' ', '.', '-', '_').filter { it.isNotBlank() }
         return when {
             words.isEmpty() -> "?"
-            words.size == 1 -> words[0].take(2).uppercase(Locale.ITALY)
-            else -> (words[0].take(1) + words[1].take(1)).uppercase(Locale.ITALY)
+            words.size == 1 -> words[0].take(2).uppercase(Locale.ROOT)
+            else -> (words[0].take(1) + words[1].take(1)).uppercase(Locale.ROOT)
         }
     }
 

@@ -120,7 +120,7 @@ class FrameReader(private val input: DataInputStream) {
         val header = ByteArray(Framing.LENGTH_HEADER_SIZE)
         if (!readFully(header)) return null
         val length = Framing.readInt(header, 1)
-        require(length in 0..Protocol.MAX_FRAME_BYTES) { "frame dichiarato troppo grande: $length" }
+        require(length in 0..Protocol.MAX_FRAME_BYTES) { "declared frame too large: $length" }
         if (length == 0) return header
         val payload = ByteArray(length)
         if (!readFully(payload)) return null

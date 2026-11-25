@@ -32,7 +32,7 @@ enum class CallEndReason(val label: String) {
     LOCAL_HANGUP("call ended"),
     REMOTE_HANGUP("the other side hung up"),
     DECLINED("call declined"),
-    BUSY("occupato"),
+    BUSY("busy"),
     TIMEOUT("no answer"),
     FAILED("connection failed"),
     UNSUPPORTED("calls are not available on this device"),
@@ -58,7 +58,7 @@ data class CallSnapshot(
     val startedAt: Long = 0,
     val connectedAt: Long? = null,
     val endReason: CallEndReason? = null,
-    /** Short line under the peer name: "ringing", "connessione...". */
+    /** Short line under the peer name: "ringing", "connecting...". */
     val notice: String? = null,
 ) {
     val isBusy: Boolean get() = phase.isLive
@@ -160,14 +160,14 @@ object CallStateMachine {
 
         is CallEvent.LocalAccepted ->
             if (state.phase == CallPhase.RINGING) {
-                state.copy(phase = CallPhase.CONNECTING, notice = "connessione...")
+                state.copy(phase = CallPhase.CONNECTING, notice = "connecting...")
             } else {
                 state
             }
 
         is CallEvent.RemoteAccepted ->
             if (state.phase == CallPhase.DIALING || state.phase == CallPhase.RINGING) {
-                state.copy(phase = CallPhase.CONNECTING, notice = "connessione...")
+                state.copy(phase = CallPhase.CONNECTING, notice = "connecting...")
             } else {
                 state
             }

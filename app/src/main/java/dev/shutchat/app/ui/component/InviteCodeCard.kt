@@ -128,7 +128,7 @@ fun InviteCodeCard(
                 onCopy?.let { action ->
                     CardAction(
                         icon = Icons.Default.ContentCopy,
-                        label = "Copia",
+                        label = "Copy",
                         onClick = action,
                         modifier = Modifier.weight(1f),
                     )
@@ -136,7 +136,7 @@ fun InviteCodeCard(
                 onShare?.let { action ->
                     CardAction(
                         icon = Icons.Default.Share,
-                        label = "Condividi",
+                        label = "Share",
                         onClick = action,
                         modifier = Modifier.weight(1f),
                     )

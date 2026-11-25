@@ -28,3 +28,6 @@ Thumbs.db
 # Release signing key: NEVER in the repo (public repo).
 # See keys/keystore.properties and /workspace/project/keys/.
 keys
+
+# Agent memory
+.openhands/

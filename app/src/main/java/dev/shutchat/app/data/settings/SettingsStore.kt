@@ -49,7 +49,7 @@ class SettingsStore(private val context: Context) {
     }
 
     val displayName: Flow<String> = context.dataStore.data.map { it[Keys.displayName] ?: "" }
-    val status: Flow<String> = context.dataStore.data.map { it[Keys.status] ?: "Disponibile" }
+    val status: Flow<String> = context.dataStore.data.map { it[Keys.status] ?: "Available" }
     val theme: Flow<String> = context.dataStore.data.map { it[Keys.theme] ?: "system" }
     val dynamicColor: Flow<Boolean> = context.dataStore.data.map { it[Keys.dynamicColor] ?: true }
     val readReceipts: Flow<Boolean> = context.dataStore.data.map { it[Keys.readReceipts] ?: true }

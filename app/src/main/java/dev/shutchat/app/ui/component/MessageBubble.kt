@@ -279,7 +279,7 @@ private fun AudioBody(
         ) {
             Icon(
                 imageVector = if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (playing) "Metti in pausa" else "Riproduci",
+                contentDescription = if (playing) "Pause" else "Play",
                 tint = textColor.copy(alpha = if (ready) 1f else 0.45f),
                 modifier = Modifier.size(21.dp),
             )
@@ -462,8 +462,8 @@ fun TypingIndicator(names: List<String>, modifier: Modifier = Modifier) {
     ) {
         Text(
             text = when (names.size) {
-                1 -> "${names[0]} sta scrivendo…"
-                else -> "${names.size} persone stanno scrivendo…"
+                1 -> "${names[0]} is typing…"
+                else -> "${names.size} people are typing…"
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary,
