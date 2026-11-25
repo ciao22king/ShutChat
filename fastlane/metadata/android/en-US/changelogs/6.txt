@@ -1,0 +1,4 @@
+- Linux desktop client, now feature complete: home, conversation, groups, settings.
+- Files, photos and voice notes arrive complete (a bug cut them off after the first chunks).
+- Calls reach the desktop and the phone over the relay, with a silent fallback when a machine has no sound device.
+- The group screen no longer says "No active code" while showing one.

@@ -1,0 +1,33 @@
+ShutChat is a messenger with no server and no account. Two devices find each other, agree on a key, and talk directly. There is nothing to sign up for and nothing to hand over: no phone number, no email, no profile.
+
+HOW IT WORKS
+
+You create a chat and get a short code: 24 characters in Crockford Base32, generated from a 15-byte invite. You give that code to the other person however you like, in person, in a message, or as a QR code. When they enter it, the two devices connect and start talking.
+
+Messages and files are encrypted end to end. The key never leaves the two devices.
+
+THREE WAYS TO REACH SOMEONE
+
+- Local network: the devices find each other on the same Wi-Fi, with UDP discovery and TCP for the data.
+- Nearby: Bluetooth and Wi-Fi Direct when there is no network at all.
+- Relay: a public MQTT broker carries encrypted frames when the two devices are on different networks, so distance stops mattering. The broker sees only ciphertext and cannot read a message, a name or a call.
+
+WHAT YOU CAN SEND
+
+- Text messages, with replies, edits and delivery state.
+- Photos and files of any size, sent in chunks with a progress bar.
+- Voice notes.
+- Audio calls, with mute, hang up and a call timer.
+
+PRIVACY
+
+- No telemetry, no analytics, no crash reporting, no advertising ID.
+- No account, no contact upload, no address book access.
+- Chats live in the app's own storage. You can archive them, set them to expire, and delete them completely.
+- The code is open source under Apache-2.0, and you can build it yourself.
+
+REQUIREMENTS
+
+Android 8.0 or newer. The nearby and relay transports use optional Google components; the local network transport needs none of them. There is also a Linux desktop client that talks to the same chats, so a phone and a computer can message each other.
+
+ShutChat is for people who want a conversation that belongs to them and nobody else. It makes no promises about magic: it is honest about what a relay sees, what a LAN can guess, and what happens when a device is offline.
