@@ -3,7 +3,7 @@
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
 
-# ShutChat
+# ShutChat!
 
 A peer-to-peer messenger for Android and Linux. Messages and calls travel
 directly between devices: there is no server, no account, and nothing to sign up
