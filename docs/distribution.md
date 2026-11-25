@@ -127,6 +127,30 @@ closed, it marks the account as a source of low-effort submissions. The entries
 below are ready; submit them when the project has a track record, or when the
 list's rules allow a new project.
 
+### Lists that accept a new project, ready to send
+
+These three have no maturity requirement: they ask for source code and a free
+license, nothing else. `scripts/submit_awesome.py` opens the pull requests.
+
+| Repository | Where the entry goes | Why it fits |
+|---|---|---|
+| `androiddevnotes/awesome-android-kotlin-apps` | `input_data.json`, Jetpack Compose group | Compose app, no age requirement |
+| `ivon852/awesome-foss-android-apps` | `README.md`, 通訊軟體 table | FOSS Android apps, license only |
+| `pronzzz/awesome-android-foss` | `data/apps.yml` | bot-generated README, data file is the source |
+
+```bash
+python3 scripts/submit_awesome.py --dry-run      # the exact diffs, no side effects
+GITHUB_TOKEN=<pat with public_repo> python3 scripts/submit_awesome.py
+```
+
+The token needs the `public_repo` scope: a pull request to someone else's
+repository has to come from a fork, and the token OpenHands injects at session
+start is scoped to the user's own repositories, so `POST /forks` answers 403.
+
+Lists left out on purpose: `mafintosh/awesome-p2p` and `retrohacker/awesome-p2p`
+collect papers and libraries for people building p2p software, not apps;
+`offa/android-foss` expects a store link in every entry.
+
 ### pluja/awesome-privacy (20k stars)
 
 File: `data/sections/instant-messaging.yaml`, subsection `P2P`. Their rules
