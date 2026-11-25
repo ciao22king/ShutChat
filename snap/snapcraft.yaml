@@ -1,0 +1,66 @@
+name: shutchat
+title: ShutChat
+summary: Messenger with no server and no account
+description: |
+  ShutChat connects two devices directly. There is nothing to sign up for and
+  nothing to hand over: no phone number, no email, no profile.
+
+  Chats start from a short code the two people exchange themselves, and every
+  message, file and call is encrypted end to end. On the same network the
+  devices find each other by themselves; across the internet an encrypted relay
+  carries the frames, and the relay only ever sees ciphertext.
+
+  The same chats are shared with the Android client.
+version: '1.4.0'
+grade: stable
+confinement: strict
+base: core24
+icon: desktop/icons/shutchat.png
+license: Apache-2.0
+contact: https://github.com/ciao22king/ShutChat/issues
+issues: https://github.com/ciao22king/ShutChat/issues
+source-code: https://github.com/ciao22king/ShutChat
+website: https://github.com/ciao22king/ShutChat
+
+platforms:
+  amd64:
+
+apps:
+  shutchat:
+    command: bin/shutchat
+    extensions:
+      - gnome
+    plugs:
+      - network
+      - network-bind
+      - home
+      - removable-media
+      - audio-playback
+      - audio-record
+
+parts:
+  shutchat:
+    plugin: nil
+    source: .
+    build-packages:
+      - openjdk-21-jdk-headless
+      - unzip
+    stage-packages:
+      - libpulse0
+      - libasound2t64
+      - libx11-6
+      - libxext6
+      - libxrender1
+      - libxtst6
+      - libxi6
+      - libgl1
+      - libfontconfig1
+      - libfreetype6
+      - libharfbuzz0b
+    override-build: |
+      # The JRE that jpackage bundles is the one from build-packages, so the
+      # runtime inside the snap matches core24 instead of the build machine.
+      export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+      ./gradlew :desktop:createDistributable --no-daemon
+      install -d "$CRAFT_PART_INSTALL"
+      cp -a desktop/build/compose/binaries/main/app/shutchat/. "$CRAFT_PART_INSTALL"/

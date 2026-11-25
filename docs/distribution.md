@@ -196,6 +196,45 @@ F-Droid or the repository. Add it after the IzzyOnDroid listing:
 - Generic `awesome-*` link dumps with no review: no value, and the traffic they
   bring is noise.
 
+## Snap Store
+
+The snap is `snap/snapcraft.yaml`. The name `shutchat` was free on 2026-11-25;
+register it once logged in, otherwise the first upload takes the name from the
+upload itself.
+
+There is no login URL. The Snap Store authenticates with an Ubuntu One email and
+password typed into the CLI, so the browser links people expect
+(`snapcraft.io/login`) do not exist: the account is created at
+<https://login.ubuntu.com> and used with `snapcraft login`.
+
+Two ways to get credentials into an environment:
+
+```bash
+# on your own machine, once logged in there
+snapcraft export-login --snaps=shutchat --acls=package_upload,push shutchat-login.txt
+```
+
+then store that file's contents as the secret `SNAPCRAFT_STORE_CREDENTIALS`. With
+it exported, `snapcraft upload` and `snapcraft release` work without a keyring.
+
+Building and publishing:
+
+```bash
+snapcraft register shutchat          # once
+snapcraft pack                       # produces shutchat_1.4.0_amd64.snap
+snapcraft upload --release=stable shutchat_1.4.0_amd64.snap
+```
+
+`scripts/setup-snapcraft.sh` installs snapcraft 9 in this container, which has no
+systemd and therefore no snapd: it unpacks the snapcraft snap and its core24
+base, points `/snap/*/current` at them, and answers the `snapctl` calls snapcraft
+makes. `snapcraft login` additionally needs a keyring, which the script explains
+how to start. A container restart wipes all of it, so the script exists.
+
+The build itself has not been run yet: the container has no JDK, and the snap
+build downloads Gradle dependencies. Expect the first `snapcraft pack` to need a
+round of fixes, especially around the bundled JRE.
+
 ## Checklist for a release
 
 1. Bump `versionName` and `versionCode` in `app/build.gradle.kts`, and the
