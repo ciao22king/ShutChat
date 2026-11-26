@@ -11,9 +11,13 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.Person
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.IconCompat
 import dev.shutchat.app.MainActivity
 import dev.shutchat.app.R
+import dev.shutchat.app.service.NotificationActionReceiver
+import dev.shutchat.app.ui.screens.call.IncomingCallActivity
 
 /**
  * Notifications.
@@ -30,6 +34,10 @@ class Notifier(private val context: Context) {
     fun ensureChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val system = context.getSystemService(NotificationManager::class.java) ?: return
+        // The channel id changed when the ringtone was added: Android ignores
+        // such edits on an existing channel, so the old one is dropped instead
+        // of leaving a silent duplicate in the settings screen.
+        system.deleteNotificationChannel(CHANNEL_CALLS_LEGACY)
         system.createNotificationChannels(
             listOf(
                 NotificationChannel(
@@ -62,7 +70,18 @@ class Notifier(private val context: Context) {
                 ).apply {
                     description = "Incoming audio and video calls"
                     enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 1500, 800, 1500, 800, 1500)
                     setBypassDnd(true)
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                    setSound(
+                        android.media.RingtoneManager.getDefaultUri(
+                            android.media.RingtoneManager.TYPE_RINGTONE,
+                        ),
+                        android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build(),
+                    )
                 },
             ),
         )
@@ -150,35 +169,62 @@ class Notifier(private val context: Context) {
     }
 
     /**
-     * Rings for an incoming call.
+     * Rings for an incoming call, WhatsApp style.
      *
-     * Uses the calls channel so the alert survives Do Not Disturb only when the
-     * user allows it, and never shows the caller's message text: there is none.
+     * The notification carries a full screen intent, so the call reaches the
+     * user with the app closed, in the background, or behind the lock screen.
+     * On Android 14+ the system only honours that intent for apps that hold the
+     * calling permission, which is why the manifest declares it.
      */
-    fun incomingCall(peerName: String, video: Boolean) {
+    fun incomingCall(peerName: String, video: Boolean, timeoutMs: Long = CALL_RING_MS) {
         if (!canPost()) return
-        val intent = Intent(context, MainActivity::class.java).apply {
+        val name = peerName.ifBlank { "Someone" }
+        val screenIntent = Intent(context, IncomingCallActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(IncomingCallActivity.EXTRA_CALLER, name)
+            putExtra(IncomingCallActivity.EXTRA_VIDEO, video)
         }
-        val pending = PendingIntent.getActivity(
+        val fullScreen = PendingIntent.getActivity(
             context,
             CALL_NOTIFICATION_ID,
-            intent,
+            screenIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val decline = PendingIntent.getBroadcast(
+            context,
+            CALL_NOTIFICATION_ID + 1,
+            Intent(context, NotificationActionReceiver::class.java)
+                .setAction(NotificationActionReceiver.ACTION_CALL_DECLINE),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val kind = if (video) "Video call" else "Call"
-        val notification = NotificationCompat.Builder(context, CHANNEL_CALLS)
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_CALLS)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("$kind arriving")
-            .setContentText(peerName.ifBlank { "Someone" })
-            .setContentIntent(pending)
+            .setContentTitle("$kind from $name")
+            .setContentText("Tap to answer")
+            .setContentIntent(fullScreen)
+            .setFullScreenIntent(fullScreen, true)
             .setOngoing(true)
             .setAutoCancel(false)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .build()
-        runCatching { manager.notify(CALL_NOTIFICATION_ID, notification) }
+            .setTimeoutAfter(timeoutMs)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val person = Person.Builder()
+                .setName(name)
+                .setImportant(true)
+                .setIcon(IconCompat.createWithResource(context, R.drawable.ic_notification))
+                .build()
+            builder.setStyle(NotificationCompat.CallStyle.forIncomingCall(person, decline, fullScreen))
+        } else {
+            builder
+                .addAction(R.drawable.ic_notification, "Decline", decline)
+                .addAction(R.drawable.ic_notification, "Answer", fullScreen)
+        }
+        runCatching { manager.notify(CALL_NOTIFICATION_ID, builder.build()) }
     }
 
     fun clearIncomingCall() {
@@ -206,9 +252,13 @@ class Notifier(private val context: Context) {
         const val CHANNEL_MESSAGES = "messages"
         const val CHANNEL_SESSION = "session"
         const val CHANNEL_CODES = "codes"
-        const val CHANNEL_CALLS = "calls"
+        const val CHANNEL_CALLS = "calls_v2"
+        private const val CHANNEL_CALLS_LEGACY = "calls"
         const val KEY_REPLY = "reply_text"
         const val SESSION_NOTIFICATION_ID = 0x5C0D
         const val CALL_NOTIFICATION_ID = 0xCA11
+
+        /** How long the phone rings before the call gives up on its own. */
+        const val CALL_RING_MS = 45_000L
     }
 }

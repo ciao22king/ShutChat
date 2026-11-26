@@ -33,9 +33,10 @@ abstract class ShutChatDatabase : RoomDatabase() {
 
         fun build(context: Context): ShutChatDatabase =
             Room.databaseBuilder(context, ShutChatDatabase::class.java, NAME)
-                // Everything is local-only and rebuildable from peers, so a
-                // schema change can drop and recreate rather than migrate.
-                .fallbackToDestructiveMigration()
+                // Chats are not rebuilt from peers: history is not re-sent, and
+                // the peer may never come back. A schema bump must therefore
+                // come with a Migration, and anything else fails loudly instead
+                // of wiping what the user wrote.
                 .build()
     }
 }

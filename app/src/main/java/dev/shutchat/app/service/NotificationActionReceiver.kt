@@ -26,6 +26,12 @@ import kotlinx.coroutines.launch
 class NotificationActionReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_CALL_DECLINE) {
+            val app = context.applicationContext as? ShutChatApp ?: return
+            app.container.calls.decline()
+            app.container.notifier.clearIncomingCall()
+            return
+        }
         if (intent.action != ACTION_REPLY) return
         val chatId = intent.getStringExtra(MainActivity.EXTRA_CHAT_ID) ?: return
         val text = RemoteInput.getResultsFromIntent(intent)?.getCharSequence(Notifier.KEY_REPLY)
@@ -48,6 +54,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "NotificationAction"
         const val ACTION_REPLY = "dev.shutchat.app.action.REPLY"
+
+        /** "Decline" on the ringing notification, answered without opening the app. */
+        const val ACTION_CALL_DECLINE = "dev.shutchat.app.action.CALL_DECLINE"
     }
 }
 

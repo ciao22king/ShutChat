@@ -44,6 +44,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets the ringing screen come up while the app is closed. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- WebRTC needs to switch the audio route for calls (earpiece/speaker). -->
@@ -102,6 +104,17 @@
                     android:host="join" />
             </intent-filter>
         </activity>
+
+        <!-- Raised by the call notification: the ringing screen, not a message. -->
+        <activity
+            android:name=".ui.screens.call.IncomingCallActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.ShutChat.Call"
+            android:turnScreenOn="true" />
 
         <service
             android:name=".service.SessionService"
