@@ -1,0 +1,677 @@
+// ShutChat for Linux.
+//
+// Declarative and compiled into the binary, the way Compose is on Android: no
+// web view, no second runtime. Spacing is deliberately generous — a messenger is
+// read at arm's length, so rows breathe and nothing is crammed against an edge.
+
+import { ScrollView } from "std-widgets.slint";
+
+export struct ChatRow {
+    id: string,
+    title: string,
+    initial: string,
+    preview: string,
+    when: string,
+    unread: int,
+    kind: string,
+}
+
+export struct MessageRow {
+    id: string,
+    body: string,
+    sender: string,
+    when: string,
+    mine: bool,
+    status: string,
+}
+
+component ActionButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> quiet: false;
+    in property <color> fill: quiet ? #1B1B24 : #3E63DD;
+    callback clicked;
+
+    height: 46px;
+    border-radius: 14px;
+    background: touch.pressed ? fill.darker(0.18) : fill;
+    border-width: quiet ? 1px : 0px;
+    border-color: #2E2E3A;
+
+    Text {
+        text: root.label;
+        color: root.quiet ? #D8D8E2 : white;
+        font-size: 15px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+component Field inherits Rectangle {
+    in-out property <string> text <=> input.text;
+    in property <string> placeholder: "";
+    callback edited(string);
+    callback accepted(string);
+
+    height: 46px;
+    border-radius: 14px;
+    background: #17171F;
+    border-width: 1px;
+    border-color: input.has-focus ? #3E63DD : #262633;
+
+    if root.text == "" && !input.has-focus : Text {
+        x: 15px;
+        width: parent.width - 30px;
+        height: parent.height;
+        text: root.placeholder;
+        color: #5E5E6C;
+        font-size: 15px;
+        vertical-alignment: center;
+    }
+
+    input := TextInput {
+        x: 14px;
+        width: parent.width - 28px;
+        height: parent.height;
+        color: #F2F2F7;
+        font-size: 15px;
+        single-line: true;
+        edited => {
+            root.edited(root.text);
+        }
+        accepted => {
+            root.accepted(root.text);
+        }
+    }
+}
+
+component Avatar inherits Rectangle {
+    in property <string> name;
+    in property <length> size: 46px;
+
+    width: root.size;
+    height: root.size;
+    border-radius: root.size / 2;
+    background: #23232E;
+
+    Text {
+        text: root.name == "" ? "?" : root.name;
+        color: #CFCFDA;
+        font-size: 18px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "ShutChat";
+    preferred-width: 480px;
+    preferred-height: 840px;
+    min-width: 360px;
+    min-height: 520px;
+    background: #0E0E12;
+
+    in-out property <[ChatRow]> chats;
+    in-out property <[MessageRow]> messages;
+    in-out property <string> page: "home";
+    in-out property <string> display-name: "You";
+    in-out property <string> initial: "?";
+    in-out property <string> node-id: "";
+    in-out property <string> lan-status: "starting";
+    in-out property <string> peer-status: "no peers yet";
+    in-out property <string> chat-id: "";
+    in-out property <string> chat-title: "";
+    in-out property <string> chat-status: "";
+    in-out property <string> invite-code: "";
+    in-out property <string> invite-uri: "";
+    in-out property <string> notice: "";
+    in-out property <string> draft: "";
+    in-out property <string> join-text: "";
+    in-out property <string> name-text: "";
+    in-out property <length> messages-scroll: 0px;
+    // Ticks left before the conversation is parked on the newest message.
+    in-out property <int> scroll-wanted: 0;
+
+    in property <bool> lan-active: false;
+
+    callback create-chat(bool, int);
+    callback join(string);
+    callback open-chat(string);
+    callback send(string);
+    callback back();
+    callback save-name(string);
+    callback copy-code(string);
+
+    // ---------------------------------------------------------------- home
+    if root.page == "home" : VerticalLayout {
+        padding: 20px;
+        spacing: 16px;
+
+        HorizontalLayout {
+            spacing: 12px;
+            Avatar { name: root.initial; size: 42px; }
+            VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+                Text {
+                    text: root.display-name;
+                    color: #F2F2F7;
+                    font-size: 18px;
+                    font-weight: 700;
+                }
+                Text {
+                    text: root.lan-status;
+                    color: root.lan-active ? #4ADE80 : #9A9AA8;
+                    font-size: 13px;
+                }
+            }
+            Rectangle { }
+            ActionButton {
+                label: "Settings";
+                quiet: true;
+                width: 96px;
+                clicked => {
+                    root.page = "settings";
+                }
+            }
+        }
+
+        Text {
+            text: "Chats";
+            color: #F2F2F7;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        if root.chats.length == 0 : Rectangle {
+            background: #15151C;
+            border-radius: 18px;
+            VerticalLayout {
+                padding: 24px;
+                spacing: 10px;
+                Text {
+                    text: "No conversations yet";
+                    color: #F2F2F7;
+                    font-size: 16px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Create a code and send it to someone, or paste the code they sent you.";
+                    color: #9A9AA8;
+                    font-size: 14px;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        ScrollView {
+            content-width: self.width;
+            VerticalLayout {
+                spacing: 10px;
+                for chat in root.chats : Rectangle {
+                    height: 74px;
+                    border-radius: 18px;
+                    background: chat-touch.has-hover ? #1D1D27 : #15151C;
+
+                    chat-touch := TouchArea {
+                        clicked => {
+                            root.open-chat(chat.id);
+                        }
+                    }
+
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        padding-top: 14px;
+                        padding-bottom: 14px;
+                        spacing: 14px;
+                        Avatar { name: chat.initial; size: 46px; }
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 4px;
+                            Text {
+                                text: chat.title;
+                                color: #F2F2F7;
+                                font-size: 16px;
+                                font-weight: 600;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: chat.preview == "" ? "No messages yet" : chat.preview;
+                                color: #9A9AA8;
+                                font-size: 14px;
+                                overflow: elide;
+                            }
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 6px;
+                            Text {
+                                text: chat.when;
+                                color: #6E6E7C;
+                                font-size: 12px;
+                                horizontal-alignment: right;
+                            }
+                            if chat.unread > 0 : Rectangle {
+                                height: 22px;
+                                width: 22px;
+                                border-radius: 11px;
+                                background: #3E63DD;
+                                Text {
+                                    text: chat.unread > 99 ? "99+" : chat.unread;
+                                    color: white;
+                                    font-size: 11px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 12px;
+            ActionButton {
+                label: "New code";
+                clicked => {
+                    root.invite-code = "";
+                    root.page = "create";
+                }
+            }
+            ActionButton {
+                label: "Join with a code";
+                quiet: true;
+                clicked => {
+                    root.page = "join";
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------- create
+    if root.page == "create" : VerticalLayout {
+        padding: 20px;
+        spacing: 16px;
+
+        HorizontalLayout {
+            spacing: 12px;
+            ActionButton {
+                label: "Back";
+                quiet: true;
+                width: 90px;
+                clicked => {
+                    root.page = "home";
+                }
+            }
+            Text {
+                text: "New conversation";
+                color: #F2F2F7;
+                font-size: 20px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+        }
+
+        if root.invite-code == "" : VerticalLayout {
+            spacing: 12px;
+            Text {
+                text: "The code is the room. Whoever holds it can join, so send it only to the person you mean to talk to.";
+                color: #9A9AA8;
+                font-size: 14px;
+                wrap: word-wrap;
+            }
+            ActionButton {
+                label: "Direct chat, expires in 7 days";
+                clicked => {
+                    root.create-chat(false, 7);
+                }
+            }
+            ActionButton {
+                label: "Direct chat, never expires";
+                quiet: true;
+                clicked => {
+                    root.create-chat(false, 0);
+                }
+            }
+            ActionButton {
+                label: "Group, never expires";
+                quiet: true;
+                clicked => {
+                    root.create-chat(true, 0);
+                }
+            }
+        }
+
+        if root.invite-code != "" : VerticalLayout {
+            spacing: 16px;
+            Text {
+                text: "Send this code";
+                color: #9A9AA8;
+                font-size: 14px;
+            }
+            Rectangle {
+                background: #15151C;
+                border-radius: 18px;
+                VerticalLayout {
+                    padding: 22px;
+                    spacing: 12px;
+                    Text {
+                        text: root.invite-code;
+                        color: #F2F2F7;
+                        font-size: 22px;
+                        font-weight: 700;
+                        letter-spacing: 1.5px;
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: root.invite-uri;
+                        color: #6E6E7C;
+                        font-size: 11px;
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+            ActionButton {
+                label: "Copy the link";
+                clicked => {
+                    root.copy-code(root.invite-uri);
+                }
+            }
+            ActionButton {
+                label: "Open the chat";
+                quiet: true;
+                clicked => {
+                    root.page = "home";
+                }
+            }
+        }
+        Rectangle { }
+    }
+
+    // ---------------------------------------------------------------- join
+    if root.page == "join" : VerticalLayout {
+        padding: 20px;
+        spacing: 16px;
+
+        HorizontalLayout {
+            spacing: 12px;
+            ActionButton {
+                label: "Back";
+                quiet: true;
+                width: 90px;
+                clicked => {
+                    root.page = "home";
+                }
+            }
+            Text {
+                text: "Join a conversation";
+                color: #F2F2F7;
+                font-size: 20px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+        }
+
+        Text {
+            text: "Paste the 24 characters, with or without dashes.";
+            color: #9A9AA8;
+            font-size: 14px;
+            wrap: word-wrap;
+        }
+
+        Field {
+            text <=> root.join-text;
+            edited(text) => {
+                root.join-text = text;
+            }
+        }
+
+        if root.notice != "" : Text {
+            text: root.notice;
+            color: #F87171;
+            font-size: 13px;
+            wrap: word-wrap;
+        }
+
+        ActionButton {
+            label: "Join";
+            clicked => {
+                root.join(root.join-text);
+            }
+        }
+        Rectangle { }
+    }
+
+    // ---------------------------------------------------------------- chat
+    if root.page == "chat" : VerticalLayout {
+        spacing: 0px;
+
+        Rectangle {
+            height: 72px;
+            background: #12121A;
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                spacing: 12px;
+                ActionButton {
+                    label: "Back";
+                    quiet: true;
+                    width: 80px;
+                    clicked => {
+                        root.page = "home";
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 3px;
+                    Text {
+                        text: root.chat-title;
+                        color: #F2F2F7;
+                        font-size: 17px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: root.chat-status;
+                        color: #9A9AA8;
+                        font-size: 12px;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+
+        scroller := ScrollView {
+            content-y <=> root.messages-scroll;
+            content-width: self.width;
+            // The content height changes when a message arrives, but the scroller
+            // has not been laid out yet: retry on the timer below.
+            changed content-height => {
+                root.scroll-wanted = 3;
+            }
+            VerticalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 16px;
+                padding-bottom: 16px;
+                spacing: 12px;
+
+                for message in root.messages : HorizontalLayout {
+                    spacing: 10px;
+                    vertical-stretch: 0;
+                    alignment: message.mine ? end : start;
+                    Rectangle {
+                        // Anchored to the window, not to the scroll content: a Flickable's
+                        // width is derived from its children, so parent.width would loop.
+                        width: min(root.width * 0.72, 420px);
+                        // The bubble hugs its lines even when the layout has spare room.
+                        height: bubble-layout.preferred-height;
+                        border-radius: 18px;
+                        background: message.mine ? #3E63DD : #1B1B24;
+                        bubble-layout := VerticalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            padding-top: 12px;
+                            padding-bottom: 12px;
+                            spacing: 6px;
+                            if !message.mine : Text {
+                                text: message.sender;
+                                color: #8FA8FF;
+                                font-size: 12px;
+                                font-weight: 600;
+                            }
+                            Text {
+                                text: message.body;
+                                color: message.mine ? white : #E8E8F0;
+                                font-size: 15px;
+                                wrap: word-wrap;
+                            }
+                            Text {
+                                text: message.when + "  " + message.status;
+                                color: message.mine ? #C9D4FF : #6E6E7C;
+                                font-size: 11px;
+                                horizontal-alignment: end;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Scrolls to the newest message a frame after the content changed, when
+        // the layout finally knows how tall the visible area is.
+        Timer {
+            interval: 20ms;
+            running: root.scroll-wanted > 0;
+            triggered => {
+                // content-y is the content offset inside the viewport: negative
+                // values push the content up, which is what "scroll down" means.
+                root.messages-scroll = min(0px, scroller.height - scroller.content-height);
+                root.scroll-wanted = root.scroll-wanted - 1;
+            }
+        }
+
+        Rectangle {
+            height: 84px;
+            background: #12121A;
+            HorizontalLayout {
+                padding: 16px;
+                spacing: 12px;
+                Field {
+                    text <=> root.draft;
+                    placeholder: "Message";
+                    edited(text) => {
+                        root.draft = text;
+                    }
+                    accepted(text) => {
+                        root.send(text);
+                    }
+                }
+                ActionButton {
+                    label: "Send";
+                    width: 92px;
+                    clicked => {
+                        root.send(root.draft);
+                    }
+                }
+            }
+        }
+    }
+
+
+    // ------------------------------------------------------------ settings
+    if root.page == "settings" : VerticalLayout {
+        padding: 20px;
+        spacing: 16px;
+
+        HorizontalLayout {
+            spacing: 12px;
+            ActionButton {
+                label: "Back";
+                quiet: true;
+                width: 90px;
+                clicked => {
+                    root.page = "home";
+                }
+            }
+            Text {
+                text: "Settings";
+                color: #F2F2F7;
+                font-size: 20px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+        }
+
+        Text {
+            text: "Your name";
+            color: #9A9AA8;
+            font-size: 14px;
+        }
+        Field {
+            text <=> root.name-text;
+            placeholder: "How peers see you";
+            accepted(text) => {
+                root.save-name(text);
+            }
+        }
+        ActionButton {
+            label: "Save";
+            clicked => {
+                root.save-name(root.name-text);
+            }
+        }
+
+        Rectangle {
+            background: #15151C;
+            border-radius: 18px;
+            VerticalLayout {
+                padding: 20px;
+                spacing: 8px;
+                Text {
+                    text: "This device";
+                    color: #F2F2F7;
+                    font-size: 15px;
+                    font-weight: 600;
+                }
+                Text {
+                    text: root.node-id;
+                    color: #9A9AA8;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: root.lan-status;
+                    color: root.lan-active ? #4ADE80 : #9A9AA8;
+                    font-size: 13px;
+                }
+                Text {
+                    text: root.peer-status;
+                    color: #9A9AA8;
+                    font-size: 13px;
+                }
+            }
+        }
+
+        Text {
+            text: "Nothing leaves this machine except sealed frames addressed to a room you joined.";
+            color: #6E6E7C;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+        Rectangle { }
+    }
+}

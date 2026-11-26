@@ -31,3 +31,10 @@ keys
 
 # Agent memory
 .openhands/
+
+# Rust build output
+rust/target/
+rust/*/target/
+
+# Agent scratch
+.agent_tmp/

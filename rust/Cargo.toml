@@ -1,0 +1,9 @@
+[workspace]
+members = ["core", "app"]
+resolver = "2"
+
+# Profiles only count in the workspace root; in a member manifest cargo ignores
+# them with a warning, which is why the release binary used to keep its symbols.
+[profile.release]
+strip = true
+lto = true

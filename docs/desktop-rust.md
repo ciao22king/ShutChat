@@ -13,6 +13,19 @@ proven against the vectors that the Kotlin tests already fix (`shared/src/test`)
 A Rust core that passes the same vectors speaks the same protocol; anything else
 is guesswork.
 
+## Where the port stands
+
+| Piece | State |
+|---|---|
+| invite code, envelope, crypto, framing | ported, pinned by the Kotlin vectors |
+| LAN transport (UDP multicast discovery, TCP links) | ported, two instances exchange messages and receipts |
+| SQLite store | chats, messages, receipts, per-chat unread |
+| Slint UI | chat list, conversation with bubbles/timestamps/status, join and settings pages |
+| notifications | `org.freedesktop.Notifications` through `notify-rust` |
+| relay (MQTT) | next |
+| attachments, voice notes | after the relay |
+| calls (`webrtc-rs`) | last |
+
 ## Layout
 
 ```

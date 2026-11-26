@@ -71,7 +71,8 @@ with no push server a message can only arrive if something is awake to receive i
 | --------- | -------- |
 | `shared`  | Protocol, crypto, invite codec, mesh engine, transports, call state machine. Plain Kotlin/JVM, no Android types. |
 | `app`     | Android client: Compose UI, foreground service, Nearby Connections, WebRTC media. |
-| `desktop` | Linux client: Compose for Desktop UI (chats, group details, settings, calls), JSON store under the XDG directories, file/voice transfer, desktop notifications, WebRTC media via `webrtc-java`. |
+| `desktop` | Linux client, Compose for Desktop: chats, group details, settings, calls, attachments, notifications, WebRTC media via `webrtc-java`. Retired once `rust` reaches parity. |
+| `rust`    | Linux client, native: protocol crate `core`, Slint UI and SQLite store. LAN text messaging today, the rest of the port is tracked in `docs/desktop-rust.md`. |
 
 Android-specific pieces (multicast lock, Nearby Connections) sit behind small
 interfaces in `shared`, so the same mesh runs on a JVM without an emulator.
@@ -117,6 +118,32 @@ Calls need a working sound device. On a machine without PulseAudio or ALSA the
 client falls back to a silent audio device, connects the call anyway and says so
 on screen, which keeps the app usable on headless boxes and in CI.
 
+## Native Linux client
+
+`rust/` is the client that will replace the Compose one: one binary, no JVM, no
+bundled runtime, Slint for the UI. It shares the wire protocol with Android, so
+a code created on the phone opens the same room here.
+
+What it does today: creates and joins rooms with a 15-byte code, pairs two peers
+over the local network (UDP multicast for discovery, TCP for the links), stores
+chats in SQLite, sends and receives text with delivery receipts, and raises a
+desktop notification for messages that arrive while the window is elsewhere.
+Relay, attachments and calls are the next steps, in that order.
+
+```bash
+cd rust
+cargo build -p shutchat          # debug binary in target/debug
+cargo run -p shutchat            # launch it
+cargo test                       # core and store tests
+```
+
+State lives in `$XDG_DATA_HOME/shutchat` (default `~/.local/share/shutchat`) and
+`$XDG_CONFIG_HOME/shutchat`. Two instances on one machine are two directories:
+
+```bash
+XDG_DATA_HOME=/tmp/demo-a cargo run -p shutchat
+```
+
 ## Build
 
 You need JDK 17 or newer and the Android SDK with platform 35 and build-tools
@@ -151,6 +178,21 @@ desktop/package-appimage.sh
   needed to build it.
 
 Both wrap a jlink runtime, so the target machine does not need Java.
+
+### Linux packages, native client
+
+```bash
+cd rust && cargo build --release -p shutchat && cd ..
+rust/packaging/package-deb.sh 0.1.0
+rust/packaging/package-appimage.sh 0.1.0
+```
+
+- `.deb` → `rust/target/debian/shutchat_<version>_amd64.deb`. Installs
+  `/usr/bin/shutchat` plus the menu entry and the icon, with the dependencies
+  taken from `dpkg-shlibdeps`.
+- AppImage → `rust/target/appimage/ShutChat-<version>-x86_64.AppImage`. One file,
+  no install, no root. Graphics and display libraries stay on the host; the rest
+  of the binary's libraries are bundled.
 
 ### Integration tests against a real broker
 
