@@ -135,6 +135,9 @@ class MeshEngine(
     /** Nearby endpoints per room, so a broadcast can reach them too. */
     private val nearbyEndpointsByRoom = ConcurrentHashMap<String, MutableSet<String>>()
 
+    /** Proximity endpoint id → room it was discovered for. */
+    private val proximityRooms = ConcurrentHashMap<String, String>()
+
     private val seen = SeenCache(capacity = 2048)
     private val relaySeen = SeenCache(capacity = 4096)
     private val sendMutex = Mutex()
@@ -271,6 +274,7 @@ class MeshEngine(
         links.clear()
         peers.clear()
         nearbyEndpointsByRoom.clear()
+        proximityRooms.clear()
         refreshDiagnostics()
     }
 
@@ -421,11 +425,20 @@ class MeshEngine(
 
             is ProximityEvent.Incoming.Connected -> {
                 Log.d(TAG, "endpoint connected: ${event.endpointId}")
+                // Nothing has crossed this pipe yet. The peer's node id only
+                // exists once its hello arrives, so no PeerLink can be
+                // registered before that: the hello has to be sent here or a
+                // device reachable only through this transport stays mute.
+                if (transport.nodeIdFor(event.endpointId) != null) return
+                val roomIdHex = proximityRooms[event.endpointId] ?: return
+                val room = rooms[roomIdHex] ?: return
+                transport.send(event.endpointId, helloFrame(room))
             }
 
             is ProximityEvent.Incoming.Disconnected -> {
-                val node = transport.nodeIdFor(event.endpointId) ?: return
                 nearbyEndpointsByRoom.values.forEach { it.remove(event.endpointId) }
+                proximityRooms.remove(event.endpointId)
+                val node = transport.nodeIdFor(event.endpointId) ?: return
                 unregisterPeer(node)
             }
         }
@@ -436,11 +449,15 @@ class MeshEngine(
         when (event) {
             is ProximityEvent.Endpoint.Found -> {
                 if (event.roomIdHex.isEmpty() || !rooms.containsKey(event.roomIdHex)) return
+                proximityRooms[event.endpointId] = event.roomIdHex
                 if (transport.isConnected(event.endpointId)) return
                 transport.connect(event.endpointId)
             }
 
-            is ProximityEvent.Endpoint.Lost -> Log.d(TAG, "endpoint lost")
+            is ProximityEvent.Endpoint.Lost -> {
+                Log.d(TAG, "endpoint lost")
+                proximityRooms.remove(event.endpointId)
+            }
         }
     }
 
@@ -600,7 +617,7 @@ class MeshEngine(
         EnvelopeCodec.decode(parsed.body) as? Hello
     }.getOrNull()
 
-    private suspend fun sendHello(link: PeerLink, room: RoomSpec) {
+    private fun helloFrame(room: RoomSpec): ByteArray {
         val hello = Hello(
             roomId = room.roomIdHex,
             nodeId = localNodeId,
@@ -612,7 +629,11 @@ class MeshEngine(
         )
         // The hello is the first frame and carries only public routing material,
         // so it goes out unsealed; everything after it is encrypted.
-        link.send(Framing.frameControl(room.roomIdBytes, EnvelopeCodec.encode(hello)))
+        return Framing.frameControl(room.roomIdBytes, EnvelopeCodec.encode(hello))
+    }
+
+    private suspend fun sendHello(link: PeerLink, room: RoomSpec) {
+        link.send(helloFrame(room))
     }
 
     private suspend fun sendHelloAck(link: PeerLink, room: RoomSpec) {
@@ -734,7 +755,7 @@ private class ProximityPeerLink(
     private val transport: ProximityTransport,
 ) : PeerLink {
 
-    override val transportLabel: String = "Bluetooth / Wi-Fi Direct"
+    override val transportLabel: String = "Wi-Fi (mDNS)"
     override val isOpen: Boolean get() = transport.isConnected(endpointId)
 
     // Nearby delivers frames straight to the mesh via `incoming`, so a link that

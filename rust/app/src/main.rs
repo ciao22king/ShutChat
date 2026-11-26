@@ -5,6 +5,7 @@
 //! is a LAN mesh, the store is SQLite in the XDG data directory.
 
 mod mesh;
+mod relay;
 mod store;
 
 use anyhow::{Context, Result};
@@ -32,6 +33,13 @@ fn main() -> Result<()> {
     ui.set_display_name(display_name.clone().into());
     ui.set_name_text(display_name.clone().into());
     ui.set_initial(initial_of(&display_name).into());
+
+    // Relay state is restored before the first room is published, so the topics
+    // are subscribed as soon as the client connects to a broker.
+    let relay_on = store.relay_enabled().unwrap_or(true);
+    mesh.set_relay(relay_on);
+    ui.set_relay_on(relay_on);
+    ui.set_relay_status(relay_status(relay_on, false).into());
 
     publish_rooms(&store, &mesh)?;
 
@@ -257,6 +265,23 @@ fn main() -> Result<()> {
 
     // The mesh talks on its own thread; the UI drains what it has to say on the
     // event loop, which is the only place the models may change.
+    // ------------------------------------------------------- long distance
+    {
+        let ui = ui.as_weak();
+        let store = store.clone();
+        let mesh = mesh.clone();
+        ui.unwrap().on_set_relay(move |enabled| {
+            let Some(ui) = ui.upgrade() else {
+                return;
+            };
+            let _ = store.set_relay_enabled(enabled);
+            mesh.set_relay(enabled);
+            ui.set_relay_on(enabled);
+            ui.set_relay_up(false);
+            ui.set_relay_status(relay_status(enabled, false).into());
+        });
+    }
+
     let timer = Timer::default();
     {
         let ui = ui.as_weak();
@@ -298,6 +323,10 @@ fn main() -> Result<()> {
                     Event::PeerDown { .. } => {
                         ui.set_peer_status("no peers yet".into());
                     }
+                    Event::Relay { up } => {
+                        ui.set_relay_up(up);
+                        ui.set_relay_status(relay_status(ui.get_relay_on(), up).into());
+                    }
                     Event::Status { lan_port, peers } => {
                         ui.set_lan_active(peers > 0);
                         ui.set_lan_status(
@@ -321,6 +350,16 @@ fn main() -> Result<()> {
     ui.run().context("running the window")?;
     mesh.shutdown();
     Ok(())
+}
+
+/// What the settings screen says about the relay. Three states, because "off"
+/// and "not connected yet" mean different things to the person reading it.
+fn relay_status(enabled: bool, up: bool) -> String {
+    match (enabled, up) {
+        (false, _) => "Long distance: off, same network only".to_string(),
+        (true, true) => "Long distance: connected to a relay".to_string(),
+        (true, false) => "Long distance: trying a relay…".to_string(),
+    }
 }
 
 /// One letter for the avatar: the first character, upper case.

@@ -135,6 +135,9 @@ export component MainWindow inherits Window {
     in-out property <string> draft: "";
     in-out property <string> join-text: "";
     in-out property <string> name-text: "";
+    in-out property <bool> relay-on: true;
+    in-out property <bool> relay-up: false;
+    in-out property <string> relay-status: "Long distance: trying a relay…";
     in-out property <length> messages-scroll: 0px;
     // Ticks left before the conversation is parked on the newest message.
     in-out property <int> scroll-wanted: 0;
@@ -147,6 +150,7 @@ export component MainWindow inherits Window {
     callback send(string);
     callback back();
     callback save-name(string);
+    callback set-relay(bool);
     callback copy-code(string);
 
     // ---------------------------------------------------------------- home
@@ -662,6 +666,42 @@ export component MainWindow inherits Window {
                     text: root.peer-status;
                     color: #9A9AA8;
                     font-size: 13px;
+                }
+                Text {
+                    text: root.relay-status;
+                    color: root.relay-on && root.relay-up ? #4ADE80 : #9A9AA8;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        Rectangle {
+            background: #15151C;
+            border-radius: 18px;
+            VerticalLayout {
+                padding: 20px;
+                spacing: 10px;
+                VerticalLayout {
+                    spacing: 4px;
+                    Text {
+                        text: "Long distance";
+                        color: #F2F2F7;
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+                    Text {
+                        text: "Send messages to a device on another network through a public broker. It forwards sealed frames on a topic derived from your code, so it cannot read them.";
+                        color: #9A9AA8;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
+                }
+                ActionButton {
+                    label: root.relay-on ? "Turn off" : "Turn on";
+                    clicked => {
+                        root.set-relay(!root.relay-on);
+                    }
                 }
             }
         }

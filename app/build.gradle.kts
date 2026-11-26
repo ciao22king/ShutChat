@@ -19,8 +19,8 @@ android {
         applicationId = "dev.shutchat.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.4.0"
+        versionCode = 8
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -139,7 +139,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.compose)
 
-    implementation(libs.play.services.nearby)
+    // QR scanning is zxing, not ML Kit: pure Java, no model download, and no
+    // Play Services, so the scanner also works on a de-Googled phone.
     implementation(libs.zxing.core)
     implementation(libs.webrtc.android)
 
@@ -147,7 +148,6 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
-    implementation(libs.mlkit.barcode.scanning)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
@@ -159,4 +159,42 @@ dependencies {
 
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+}
+
+/**
+ * Fails the build when a Play Services, Firebase or ML Kit artifact reaches the
+ * app.
+ *
+ * The point of this project is a messenger that works on a phone with no Google
+ * account, no Play Store and no Play Services. That is a property of the
+ * dependency graph, not of the source, and a single `implementation(...)` line
+ * can break it silently, so it is checked rather than assumed.
+ */
+tasks.register("verifyNoPlayServices") {
+    group = "verification"
+    description = "Fails when Play Services, Firebase or ML Kit is on a runtime classpath."
+
+    val forbiddenGroups = listOf(
+        "com.google.android.gms",
+        "com.google.android.play",
+        "com.google.firebase",
+        "com.google.mlkit",
+        "com.google.android.tagmanager",
+    )
+    val runtimeClasspaths = configurations.matching { it.name.endsWith("RuntimeClasspath") }
+
+    doLast {
+        val offenders = runtimeClasspaths.flatMap { configuration ->
+            configuration.incoming.resolutionResult.allComponents
+                .mapNotNull { it.moduleVersion }
+                .filter { component -> forbiddenGroups.any { component.group.startsWith(it) } }
+                .map { "${configuration.name}: ${it.group}:${it.name}:${it.version}" }
+        }.distinct()
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "Proprietary Google runtime dependencies are not allowed:\n" +
+                    offenders.joinToString("\n") { "  $it" },
+            )
+        }
+    }
 }

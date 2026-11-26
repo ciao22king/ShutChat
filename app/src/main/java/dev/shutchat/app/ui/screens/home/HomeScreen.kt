@@ -20,7 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Wifi
@@ -232,7 +232,7 @@ fun HomeScreen(
 private fun TransportStatusLine(peers: Int, lan: Boolean, nearby: Boolean) {
     val parts = buildList {
         if (lan) add("Local network")
-        if (nearby) add("Bluetooth")
+        if (nearby) add("Wi-Fi")
     }
     val text = when {
         parts.isEmpty() -> "No transport active"
@@ -252,7 +252,7 @@ private fun TransportStatusLine(peers: Int, lan: Boolean, nearby: Boolean) {
         }
         if (nearby) {
             Icon(
-                Icons.Default.Bluetooth,
+                Icons.Default.Wifi,
                 contentDescription = null,
                 modifier = Modifier.size(11.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -903,7 +903,7 @@ private fun EmptyConversationHint(connected: Boolean, modifier: Modifier = Modif
                     "any server."
             } else {
                 "This room exists only on the devices that hold the code. To receive " +
-                    "you must be on the same Wi-Fi network or close by, with Bluetooth on."
+                    "you must both be on the same Wi-Fi network."
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

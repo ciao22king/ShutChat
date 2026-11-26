@@ -30,7 +30,7 @@ install -m644 "$ICON" "$APPDIR/shutchat.png"
 install -m644 "$ICON" "$APPDIR/usr/share/icons/hicolor/512x512/apps/shutchat.png"
 
 # Libraries provided by the host: graphics stack, display server and glibc.
-KEEP_SYSTEM='^(ld-linux|libc|libm|libdl|libpthread|librt|libresolv|libgcc_s|libstdc\+\+|libGL|libGLX|libGLdispatch|libEGL|libOpenGL|libgbm|libdrm|libX11|libxcb|libwayland|libxkbcommon|libdbus|libglib|libgobject|libgio|libselinux|libsystemd|libudev)'
+KEEP_SYSTEM='^(ld-linux|libc|libm|libdl|libpthread|librt|libresolv|libgcc_s|libstdc\+\+|libGL|libGLX|libGLdispatch|libEGL|libOpenGL|libgbm|libdrm|libX11|libxcb|libwayland|libdbus|libglib|libgobject|libgio|libselinux|libsystemd|libudev)'
 while IFS= read -r lib; do
   name="$(basename "$lib")"
   if [[ "$name" =~ $KEEP_SYSTEM ]]; then
@@ -38,6 +38,18 @@ while IFS= read -r lib; do
   fi
   cp -nL "$lib" "$APPDIR/usr/lib/" 2>/dev/null || true
 done < <(ldd "$BIN" | awk '/=> \//{print $3} /^\t\//{print $1}')
+
+# winit reaches the keyboard mapping through dlopen, so ldd never lists these
+# two and a missing copy only shows up on the user's machine: a panic before
+# the first window, "libxkbcommon-x11.so.0 could not be loaded".
+for pattern in libxkbcommon.so.0 libxkbcommon-x11.so.0; do
+  lib="$(ldconfig -p | awk -v name="$pattern" '$1 == name {print $NF; exit}')"
+  [ -n "$lib" ] || {
+    echo "error: $pattern not found (apt install libxkbcommon-x11-0)" >&2
+    exit 1
+  }
+  cp -fL "$lib" "$APPDIR/usr/lib/"
+done
 
 # The dynamic loader has to come from the image or LD_LIBRARY_PATH is ignored.
 cp -nL "$(ldd "$BIN" | awk '/ld-linux/{print $1; exit}')" "$APPDIR/usr/lib/" 2>/dev/null || true

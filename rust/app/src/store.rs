@@ -85,6 +85,21 @@ impl Store {
         set_setting(&*self.conn.lock().unwrap(), "display_name", name)
     }
 
+    /// Long distance is on unless the user turned it off: without it the client
+    /// only reaches devices on the same network.
+    pub fn relay_enabled(&self) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        Ok(setting(&conn, "relay_enabled")?.map(|value| value != "0").unwrap_or(true))
+    }
+
+    pub fn set_relay_enabled(&self, enabled: bool) -> Result<()> {
+        set_setting(
+            &*self.conn.lock().unwrap(),
+            "relay_enabled",
+            if enabled { "1" } else { "0" },
+        )
+    }
+
     pub fn chats(&self) -> Result<Vec<Chat>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(

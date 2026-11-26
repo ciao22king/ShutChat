@@ -7,38 +7,17 @@
       permissions requested are the ones the peer-to-peer transports actually need.
     -->
 
-    <!-- Nearby Connections over Bluetooth (legacy, Android 11 and below). -->
-    <uses-permission
-        android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
+    <!--
+      No Bluetooth and no location: proximity discovery is mDNS through the
+      system resolver plus a TCP socket, both of which the framework provides.
+      Dropping Nearby Connections is what lets this build run on stock Android
+      without Google Play Services, and it removes the "nearby devices" and
+      location prompts that came with it.
+    -->
 
-    <!-- Nearby Connections over Bluetooth (Android 12+). -->
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation"
-        tools:targetApi="s" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-
-    <!-- Wi-Fi Direct / LAN discovery. -->
+    <!-- The multicast socket that announces a room on the local network. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <uses-permission
-        android:name="android.permission.NEARBY_WIFI_DEVICES"
-        android:usesPermissionFlags="neverForLocation"
-        tools:targetApi="tiramisu" />
-
-    <!-- Legacy discovery on Android 11 and below. -->
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.ACCESS_COARSE_LOCATION"
-        android:maxSdkVersion="30" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

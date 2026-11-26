@@ -48,13 +48,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.DecodeHintType
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.HybridBinarizer
 import dev.shutchat.app.core.Log
 import dev.shutchat.app.util.QrGenerator
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * QR scanner.
@@ -161,19 +164,25 @@ fun ScanScreen(
     }
 }
 
-/** CameraX preview plus an ML Kit analyser that only looks for QR codes. */
+/** CameraX preview plus a zxing analyser that only looks for QR codes. */
 @Composable
 private fun CameraPreview(onDetected: (String) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
-    val scanner = remember {
-        BarcodeScanning.getClient(
-            BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                .build(),
-        )
+    // zxing rather than ML Kit: the model is pure Java, needs no download from
+    // Google and no Play Services, so scanning works on stock Android too.
+    val reader = remember {
+        MultiFormatReader().apply {
+            setHints(
+                mapOf(
+                    DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
+                    DecodeHintType.TRY_HARDER to true,
+                ),
+            )
+        }
     }
+    val delivered = remember { AtomicBoolean(false) }
     val previewView = remember { PreviewView(context) }
 
     DisposableEffect(Unit) {
@@ -190,7 +199,9 @@ private fun CameraPreview(onDetected: (String) -> Unit) {
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 analysis.setAnalyzer(executor) { proxy ->
-                    analyze(proxy, scanner, onDetected)
+                    analyze(proxy, reader, delivered) { code ->
+                        if (delivered.compareAndSet(false, true)) onDetected(code)
+                    }
                 }
                 provider?.unbindAll()
                 provider?.bindToLifecycle(
@@ -206,7 +217,6 @@ private fun CameraPreview(onDetected: (String) -> Unit) {
 
         onDispose {
             runCatching { provider?.unbindAll() }
-            runCatching { scanner.close() }
             executor.shutdown()
         }
     }
@@ -214,24 +224,114 @@ private fun CameraPreview(onDetected: (String) -> Unit) {
     AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
 }
 
+/**
+ * Decodes one camera frame.
+ *
+ * zxing works on the grey plane, which YUV hands over already: no bitmap
+ * conversion, no copy into the GPU, and the frame is released as soon as the
+ * attempt is over so the camera keeps its buffer.
+ */
 private fun analyze(
     proxy: ImageProxy,
-    scanner: com.google.mlkit.vision.barcode.BarcodeScanner,
+    reader: MultiFormatReader,
+    delivered: AtomicBoolean,
     onDetected: (String) -> Unit,
 ) {
-    val mediaImage = proxy.image ?: run {
+    try {
+        if (delivered.get()) return
+        val plane = proxy.planes.firstOrNull() ?: return
+        val buffer = plane.buffer
+        val y = ByteArray(buffer.remaining())
+        buffer.get(y)
+        val rotated = rotateLuminance(y, proxy.width, proxy.height, plane.rowStride, proxy.imageInfo.rotationDegrees)
+        val source = PlanarYUVLuminanceSource(
+            rotated.data,
+            rotated.width,
+            rotated.height,
+            0,
+            0,
+            rotated.width,
+            rotated.height,
+            false,
+        )
+        val text = runCatching { reader.decodeWithState(BinaryBitmap(HybridBinarizer(source))) }
+            .getOrNull()
+            ?.text
+            ?.takeIf { it.isNotBlank() }
+        reader.reset()
+        if (text != null) onDetected(text)
+    } catch (e: IllegalStateException) {
+        Log.d(TAG, "read failed: ${e.message}")
+    } finally {
         proxy.close()
-        return
     }
-    val image = InputImage.fromMediaImage(mediaImage, proxy.imageInfo.rotationDegrees)
-    scanner.process(image)
-        .addOnSuccessListener { barcodes ->
-            barcodes.firstOrNull { !it.rawValue.isNullOrBlank() }
-                ?.rawValue
-                ?.let(onDetected)
+}
+
+/** A greyscale frame ready for the decoder. */
+internal data class Luminance(val data: ByteArray, val width: Int, val height: Int)
+
+/**
+ * Turns the camera's grey plane into an upright image.
+ *
+ * The plane is taller than the stride accounts for: each row starts at
+ * `rowStride` rather than at `width`, so the padding has to be dropped while
+ * rotating. The decoder only ever sees dense rows.
+ */
+internal fun rotateLuminance(
+    y: ByteArray,
+    width: Int,
+    height: Int,
+    rowStride: Int,
+    degrees: Int,
+): Luminance {
+    val stride = if (rowStride <= 0) width else rowStride
+    fun at(x: Int, yIndex: Int): Byte = y[yIndex * stride + x]
+
+    return when (((degrees % 360) + 360) % 360) {
+        90 -> {
+            // Clockwise: (x, y) -> (height - 1 - y, x).
+            val out = ByteArray(width * height)
+            for (row in 0 until height) {
+                for (col in 0 until width) {
+                    out[col * height + (height - 1 - row)] = at(col, row)
+                }
+            }
+            Luminance(out, height, width)
         }
-        .addOnFailureListener { Log.d(TAG, "read failed: ${it.message}") }
-        .addOnCompleteListener { proxy.close() }
+
+        180 -> {
+            val out = ByteArray(width * height)
+            for (row in 0 until height) {
+                for (col in 0 until width) {
+                    out[(height - 1 - row) * width + (width - 1 - col)] = at(col, row)
+                }
+            }
+            Luminance(out, width, height)
+        }
+
+        270 -> {
+            // Counter-clockwise: (x, y) -> (y, width - 1 - x).
+            val out = ByteArray(width * height)
+            for (row in 0 until height) {
+                for (col in 0 until width) {
+                    out[(width - 1 - col) * height + row] = at(col, row)
+                }
+            }
+            Luminance(out, height, width)
+        }
+
+        else -> {
+            if (stride == width) {
+                Luminance(y.copyOf(width * height), width, height)
+            } else {
+                val out = ByteArray(width * height)
+                for (row in 0 until height) {
+                    y.copyInto(out, row * width, row * stride, row * stride + width)
+                }
+                Luminance(out, width, height)
+            }
+        }
+    }
 }
 
 private const val TAG = "ScanScreen"

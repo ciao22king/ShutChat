@@ -1,0 +1,4 @@
+# A GUI build must not open a console window next to the app, and the MinGW
+# linker is the one that decides that (`-mwindows`).
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-arg=-mwindows"]

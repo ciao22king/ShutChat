@@ -17,7 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Devices
@@ -228,8 +228,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onCheckedChange = viewModel::setLanDiscovery,
             )
             SettingSwitch(
-                icon = Icons.Default.Bluetooth,
-                title = "Bluetooth / Wi-Fi Direct",
+                icon = Icons.Default.Wifi,
+                title = "Wi-Fi (mDNS)",
                 subtitle = "Works without a router too, when you are close",
                 checked = state.nearbyDiscovery,
                 onCheckedChange = viewModel::setNearbyDiscovery,
@@ -554,8 +554,8 @@ private fun DiagnosticsBlock(
             },
         )
         DiagnosticLine(
-            icon = Icons.Default.Bluetooth,
-            label = "Bluetooth",
+            icon = Icons.Default.Wifi,
+            label = "Wi-Fi",
             value = if (diagnostics.nearbyActive) "attivo" else "spento",
         )
         DiagnosticLine(

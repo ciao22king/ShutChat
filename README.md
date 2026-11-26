@@ -44,8 +44,10 @@ cannot be replayed as a message.
 Transport is chosen at runtime:
 
 - **LAN** — UDP multicast to find peers on the same network, TCP for the data.
-- **Nearby Connections** — Bluetooth and Wi-Fi Direct, for devices that are close
-  but not on a shared network.
+- **mDNS** — a second discovery channel on the same Wi-Fi, through the system
+  resolver. It keeps working on access points that filter multicast, and it is
+  the replacement for Nearby Connections: no Play Services, so it also runs on a
+  phone with no Google account.
 - **Public relay** — MQTT over TLS, for devices on different networks. On by
   default, because a messenger that only works on one network is not one; it can
   be switched off from settings. The broker relays sealed frames on a topic derived from the
@@ -75,12 +77,31 @@ with no push server a message can only arrive if something is awake to receive i
 | Module    | Contents |
 | --------- | -------- |
 | `shared`  | Protocol, crypto, invite codec, mesh engine, transports, call state machine. Plain Kotlin/JVM, no Android types. |
-| `app`     | Android client: Compose UI, foreground service, Nearby Connections, WebRTC media. |
+| `app`     | Android client: Compose UI, foreground service, mDNS proximity transport, WebRTC media. |
 | `desktop` | Linux client, Compose for Desktop: chats, group details, settings, calls, attachments, notifications, WebRTC media via `webrtc-java`. Retired once `rust` reaches parity. |
 | `rust`    | Linux client, native: protocol crate `core`, Slint UI and SQLite store. LAN text messaging today, the rest of the port is tracked in `docs/desktop-rust.md`. |
 
-Android-specific pieces (multicast lock, Nearby Connections) sit behind small
-interfaces in `shared`, so the same mesh runs on a JVM without an emulator.
+Android-specific pieces (multicast lock, NsdManager) sit behind small interfaces
+in `shared`, so the same mesh runs on a JVM without an emulator.
+
+## No Google
+
+The Android build has no Play Services, no Firebase and no ML Kit, and does not
+need the Play Store: it installs and runs on an AOSP device, LineageOS or
+GrapheneOS. That is a property of the dependency graph rather than a promise, so
+it is checked in the build:
+
+```bash
+./gradlew :app:verifyNoPlayServices
+```
+
+Two things were given up to get there. QR scanning is zxing, a pure Java decoder
+that ships inside the APK instead of a model downloaded from Google. Proximity
+discovery is mDNS through the system resolver instead of Nearby Connections, so
+two devices find each other on the same Wi-Fi but not with Wi-Fi Direct and no
+network at all. Over Bluetooth the phone build is therefore no longer able to
+talk to a peer with no shared network; the relay covers that case, and LAN does
+too whenever both devices see the same access point.
 
 ## Features
 
@@ -163,7 +184,7 @@ Then:
 ```bash
 ./gradlew :app:assembleDebug     # debug APK
 ./gradlew :app:assembleRelease   # minified release APK
-./gradlew :app:testDebugUnitTest # Android unit tests
+./gradlew :app:testDebugUnitTest :app:verifyNoPlayServices # tests and the no-Google guard
 ./gradlew :shared:test :desktop:test   # shared and desktop unit tests
 ```
 
@@ -199,6 +220,57 @@ rust/packaging/package-appimage.sh 0.1.0
   no install, no root. Graphics and display libraries stay on the host; the rest
   of the binary's libraries are bundled.
 
+### Windows package
+
+```bash
+rustup target add x86_64-pc-windows-gnu   # once
+sudo apt install mingw-w64                # once, on Debian/Ubuntu
+cd rust && cargo build --release -p shutchat --target x86_64-pc-windows-gnu && cd ..
+rust/packaging/package-windows.sh 0.1.0
+```
+
+- `.zip` → `rust/target/windows/ShutChat-<version>-windows-x64.zip`. Contains
+  `ShutChat.exe`, the licence and a short readme. The executable links only
+  against DLLs that ship with Windows, so there is nothing to install: unzip and
+  double-click. Windows SmartScreen will warn that the publisher is unknown,
+  because the binary is not code-signed.
+
+## Packages, all three platforms
+
+| Platform | Artifact | Where |
+| -------- | -------- | ----- |
+| Android  | `app-release.apk`, signed with the release key | `app/build/outputs/apk/release/` |
+| Linux    | `shutchat_<version>_amd64.deb` | `rust/target/debian/` |
+| Linux    | `ShutChat-<version>-x86_64.AppImage` | `rust/target/appimage/` |
+| Windows  | `ShutChat-<version>-windows-x64.zip` | `rust/target/windows/` |
+
+Android and the desktop client speak the same protocol and share the same invite
+codes, so a code created on the phone opens the same room in the Windows or
+Linux client, and a message typed on the laptop arrives on the phone over the
+LAN or through the relay.
+
+### What the native client does today
+
+The Windows and Linux binaries carry the same two long-distance paths as the
+phone: the LAN mesh for peers on the same network, and the public relay for a
+peer anywhere else. The relay is on by default and can be switched off in
+settings; the settings screen says which state it is in rather than guessing.
+Calls, attachments and voice notes are still Android and Compose-desktop only —
+`docs/desktop-rust.md` tracks what is left.
+
+Two broker tests are kept out of the default run because they need the internet.
+They are the release check, since they are the only proof that a message crosses
+the relay:
+
+```bash
+cd rust
+cargo test -p shutchat -- --ignored
+```
+
+If a network blocks multicast, `SHUTCHAT_NO_LAN=1 shutchat` puts the client on
+the relay alone.
+
+
 ### Integration tests against a real broker
 
 The relay is the one part that cannot be proven offline. Two opt-in suites start
@@ -213,15 +285,27 @@ two real clients against the public broker:
 message, a file of several chunks, a call that reaches the media path on both
 sides, and a chat that survives a restart.
 
-The release build is signed with the debug key so the APK can be sideloaded
-without a Play account. For a real release, replace the `signingConfig` in
-`app/build.gradle.kts` with your own keystore.
+The release build is signed with the project's release key, read from
+`keys/keystore.properties` (see `keys/README-SIGNING.txt`). Keep that keystore:
+Android only installs an update over an existing app when the signing
+certificate is the same one, so losing it means every installed copy must be
+uninstalled first.
+
+```
+SHA-256  9B:68:8B:FB:5E:86:88:E2:D8:C8:33:EC:CA:9D:FD:58:EE:6B:B9:7A:E0:59:54:84:1D:5A:5F:A3:30:E2:4D:21
+```
+
+Check a built APK with:
+
+```bash
+apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk
+```
 
 ## Requirements
 
-Android 8.0 (API 26) or newer. The app asks for Bluetooth, camera and
-microphone permissions; location is requested only on Android 11 and below,
-where the platform requires it for Wi-Fi scanning.
+Android 8.0 (API 26) or newer. The app asks for camera, microphone and
+notification permissions. It does not ask for Bluetooth or location: discovery
+goes through mDNS and the multicast socket, neither of which needs them.
 
 The desktop client needs a Linux x86-64 machine with glibc and an X11 or Wayland
 session. It ships its own Java runtime, so no JDK is needed. Calls use the

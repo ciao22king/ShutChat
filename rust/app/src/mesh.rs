@@ -5,6 +5,7 @@
 //! frame after that sealed with the room key. A peer holding the invite code can
 //! read the room; anyone else sees a 16-byte room id and ciphertext.
 
+use crate::relay::{self, Relay};
 use anyhow::{Context, Result};
 use shutchat_core::beacon::Beacon;
 use shutchat_core::crypto;
@@ -34,6 +35,8 @@ pub struct RoomSpec {
     pub room_id_bytes: [u8; 16],
     pub message_key: [u8; 32],
     pub beacon_tag: [u8; 8],
+    /// Topic this room's frames are published on when the peers share no network.
+    pub relay_topic: String,
     pub title: String,
     pub expired: bool,
 }
@@ -46,6 +49,7 @@ impl RoomSpec {
             room_id_bytes: crypto::room_id(secret),
             message_key: crypto::message_key(secret),
             beacon_tag: crypto::beacon_tag(secret),
+            relay_topic: crypto::relay_topic(secret),
             title: title.to_string(),
             expired,
         }
@@ -57,6 +61,7 @@ pub enum Cmd {
     SetRooms(Vec<RoomSpec>),
     Send(WireMessage),
     SetName(String),
+    SetRelay(bool),
     Shutdown,
 }
 
@@ -67,6 +72,7 @@ pub enum Event {
     Message { message: WireMessage },
     Receipt { ids: Vec<String>, state: String },
     Status { lan_port: u16, peers: usize },
+    Relay { up: bool },
 }
 
 /// The handle the UI keeps: commands in, events out on the channel it was
@@ -92,6 +98,8 @@ impl Mesh {
             .name("mesh".into())
             .spawn(move || {
                 runtime.block_on(async move {
+                    let (relay_events, relay_rx) = mpsc::unbounded_channel();
+                    let relay_node_id = node_id.clone();
                     let mut state = State {
                         node_id,
                         display_name,
@@ -99,8 +107,11 @@ impl Mesh {
                         peers: HashMap::new(),
                         seen: Seen::new(2048),
                         events: event_tx,
+                        relay: Relay::spawn(&relay_node_id, relay_events.clone()),
+                        relay_events,
+                        relay_enabled: true,
                     };
-                    if let Err(error) = state.run(command_rx, ready_tx).await {
+                    if let Err(error) = state.run(command_rx, ready_tx, relay_rx).await {
                         eprintln!("mesh stopped: {error:#}");
                     }
                 });
@@ -121,6 +132,11 @@ impl Mesh {
         let _ = self.commands.send(Cmd::SetName(name));
     }
 
+    /// Turns the long-distance relay on or off at runtime.
+    pub fn set_relay(&self, enabled: bool) {
+        let _ = self.commands.send(Cmd::SetRelay(enabled));
+    }
+
     pub fn send(&self, message: WireMessage) {
         let _ = self.commands.send(Cmd::Send(message));
     }
@@ -130,9 +146,18 @@ impl Mesh {
     }
 }
 
+/// Which pipe carries a peer: the frames go out on the same one that brought
+/// the peer in, and a relay peer is reached by publishing once, not per peer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Via {
+    Lan,
+    Relay,
+}
+
 struct Peer {
     frames: mpsc::UnboundedSender<Vec<u8>>,
     room_id: String,
+    via: Via,
 }
 
 struct IncomingLink {
@@ -149,6 +174,9 @@ struct State {
     peers: HashMap<String, Peer>,
     seen: Seen,
     events: blocking::Sender<Event>,
+    relay: Relay,
+    relay_events: mpsc::UnboundedSender<relay::Event>,
+    relay_enabled: bool,
 }
 
 impl State {
@@ -156,6 +184,7 @@ impl State {
         &mut self,
         mut commands: mpsc::UnboundedReceiver<Cmd>,
         ready: blocking::Sender<Result<()>>,
+        mut relay_rx: mpsc::UnboundedReceiver<relay::Event>,
     ) -> Result<()> {
         let listener = match TcpListener::bind(("0.0.0.0", 0)).await {
             Ok(listener) => listener,
@@ -196,9 +225,14 @@ impl State {
                             .map(|room| (room.room_id.clone(), room))
                             .collect();
                         self.send_beacons(&socket, lan_port).await;
+                        self.sync_relay_topics();
                         self.status(lan_port);
                     }
                     Some(Cmd::Send(message)) => self.broadcast(Envelope::WireMessage(message)).await,
+                    Some(Cmd::SetRelay(enabled)) => {
+                        self.set_relay(enabled);
+                        self.status(lan_port);
+                    }
                     Some(Cmd::SetName(name)) => {
                         self.display_name = name;
                         self.send_beacons(&socket, lan_port).await;
@@ -211,7 +245,18 @@ impl State {
                     self.status(lan_port);
                 }
 
-                Some((node_id, frame)) = frame_rx.recv() => self.on_frame(&node_id, &frame).await,
+                Some((node_id, frame)) = frame_rx.recv() => {
+                    if self.peers.get(&node_id).map(|peer| peer.via) == Some(Via::Relay) {
+                        continue;
+                    }
+                    self.on_frame(&frame, Via::Lan).await
+                }
+
+                Some(event) = relay_rx.recv() => match event {
+                    relay::Event::Frame(frame) => self.on_frame(&frame, Via::Relay).await,
+                    relay::Event::Up => self.emit(Event::Relay { up: true }),
+                    relay::Event::Down => self.emit(Event::Relay { up: false }),
+                },
 
                 Some((address, beacon)) = beacon_rx.recv() => {
                     if self.dial_if_needed(address, beacon, frame_tx.clone()).await {
@@ -249,6 +294,9 @@ impl State {
     }
 
     async fn send_beacons(&self, socket: &UdpSocket, lan_port: u16) {
+        if no_lan() {
+            return;
+        }
         let node_id = match hex::from_hex(&self.node_id) {
             Ok(bytes) if bytes.len() == 16 => {
                 let mut fixed = [0u8; 16];
@@ -314,6 +362,7 @@ impl State {
             Peer {
                 frames: frames_tx,
                 room_id: room.room_id.clone(),
+                via: Via::Lan,
             },
         );
         self.emit(Event::PeerUp {
@@ -347,6 +396,7 @@ impl State {
             Peer {
                 frames: frames_tx,
                 room_id: room.room_id.clone(),
+                via: Via::Lan,
             },
         );
         self.emit(Event::PeerUp {
@@ -379,7 +429,7 @@ impl State {
         }
     }
 
-    async fn on_frame(&mut self, from: &str, raw: &[u8]) {
+    async fn on_frame(&mut self, raw: &[u8], via: Via) {
         let frame = match framing::parse(raw) {
             Some(frame) => frame,
             None => return,
@@ -407,6 +457,15 @@ impl State {
             return;
         }
 
+        let from = envelope.sender_node_id().to_string();
+        if via == Via::Relay {
+            let name = match &envelope {
+                Envelope::WireMessage(message) => message.sender_name.clone(),
+                _ => String::new(),
+            };
+            self.register_relay_peer(&from, &name, &room);
+        }
+
         match envelope {
             Envelope::WireMessage(message) => {
                 let receipt = Envelope::Receipt {
@@ -415,7 +474,7 @@ impl State {
                     state: "delivered".into(),
                     node_id: self.node_id.clone(),
                 };
-                if let Some(peer) = self.peers.get(from) {
+                if let Some(peer) = self.peers.get(&from) {
                     self.send_envelope(&room, &receipt, peer);
                 }
                 self.emit(Event::Message { message });
@@ -450,10 +509,76 @@ impl State {
         let sealed = crypto::encrypt(&room.message_key, &envelope.encode(), &room.room_id_bytes);
         let frame = framing::frame_control(&room.room_id_bytes, &sealed);
         for peer in self.peers.values() {
-            if peer.room_id == room_id {
+            if peer.room_id == room_id && peer.via == Via::Lan {
                 let _ = peer.frames.send(frame.clone());
             }
         }
+        // One publish covers every peer that is only reachable through the
+        // broker: it is a topic, not a connection per peer.
+        if self.relay_enabled {
+            self.relay.send(&room.relay_topic, frame);
+        }
+    }
+
+    /// Starts or stops the relay without touching the LAN side.
+    fn set_relay(&mut self, enabled: bool) {
+        if enabled == self.relay_enabled {
+            return;
+        }
+        self.relay_enabled = enabled;
+        if enabled {
+            self.relay = Relay::spawn(&self.node_id, self.relay_events.clone());
+            self.sync_relay_topics();
+        } else {
+            self.relay.shutdown();
+            self.peers.retain(|_, peer| peer.via != Via::Relay);
+        }
+        self.emit(Event::Relay { up: false });
+    }
+
+    fn sync_relay_topics(&self) {
+        let topics = if self.relay_enabled {
+            self.rooms
+                .values()
+                .filter(|room| !room.expired)
+                .map(|room| room.relay_topic.clone())
+                .collect()
+        } else {
+            Vec::new()
+        };
+        self.relay.set_topics(topics);
+    }
+
+    /// A peer that arrived through the broker gets a sender that publishes:
+    /// receipts go back on the topic that carried the message.
+    fn register_relay_peer(&mut self, node_id: &str, name: &str, room: &RoomSpec) {
+        if self.node_id == node_id || self.peers.contains_key(node_id) {
+            return;
+        }
+        let (frames, mut outgoing) = mpsc::unbounded_channel::<Vec<u8>>();
+        let relay = self.relay.clone();
+        let topic = room.relay_topic.clone();
+        tokio::spawn(async move {
+            while let Some(frame) = outgoing.recv().await {
+                relay.send(&topic, frame);
+            }
+        });
+        self.peers.insert(
+            node_id.to_string(),
+            Peer {
+                frames,
+                room_id: room.room_id.clone(),
+                via: Via::Relay,
+            },
+        );
+        self.emit(Event::PeerUp {
+            node_id: node_id.to_string(),
+            name: if name.is_empty() {
+                "a peer on another network".to_string()
+            } else {
+                name.to_string()
+            },
+        });
     }
 
     fn send_envelope(&self, room: &RoomSpec, envelope: &Envelope, peer: &Peer) {
@@ -461,6 +586,12 @@ impl State {
         let frame = framing::frame_control(&room.room_id_bytes, &sealed);
         let _ = peer.frames.send(frame);
     }
+}
+
+/// Multicast can be blocked by the network; `SHUTCHAT_NO_LAN` keeps the client
+/// on the relay only, which is also how the broker path is tested on one host.
+fn no_lan() -> bool {
+    std::env::var_os("SHUTCHAT_NO_LAN").is_some()
 }
 
 fn open_multicast() -> Result<UdpSocket> {
@@ -728,5 +859,82 @@ mod tests {
         assert!(seen.mark("b"));
         assert!(seen.mark("c"));
         assert!(seen.mark("a"), "a was evicted and is new again");
+    }
+
+    fn spec(chat_id: &str, title: &str) -> RoomSpec {
+        let secret = [7u8; 10];
+        RoomSpec::new(
+            chat_id,
+            &hex::to_hex(&crypto::room_id(&secret)),
+            &secret,
+            title,
+            false,
+        )
+    }
+
+    /// The whole point of the relay, exercised against a real broker: two
+    /// clients that share no network exchange a sealed message. Ignored by
+    /// default, since it needs the internet and a public broker to be up.
+    #[test]
+    #[ignore = "needs a public MQTT broker"]
+    fn a_message_crosses_the_relay_between_two_clients() {
+        std::env::set_var("SHUTCHAT_NO_LAN", "1");
+
+        let (a, a_events) = Mesh::start("11".repeat(16), "Anna".into()).unwrap();
+        let (b, b_events) = Mesh::start("22".repeat(16), "Bruno".into()).unwrap();
+        a.set_rooms(vec![spec("chat-a", "Anna's side")]);
+        b.set_rooms(vec![spec("chat-b", "Bruno's side")]);
+
+        wait_for_relay(&b_events);
+        wait_for_relay(&a_events);
+
+        a.send(WireMessage {
+            room_id: spec("chat-a", "").room_id,
+            message_id: "m1".into(),
+            chat_id: "chat-a".into(),
+            sender_node_id: "11".repeat(16),
+            sender_name: "Anna".into(),
+            kind: "text".into(),
+            body: "from far away".into(),
+            created_at: shutchat_core::expiry::now_millis(),
+            reply_to_id: None,
+            reply_to_preview: None,
+            attachment: None,
+            seen_by: Vec::new(),
+            hops: 0,
+        });
+
+        let deadline = std::time::Instant::now() + Duration::from_secs(60);
+        loop {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the message never arrived through the relay"
+            );
+            match b_events.recv_timeout(Duration::from_millis(500)) {
+                Ok(Event::Message { message }) => {
+                    assert_eq!(message.body, "from far away");
+                    assert_eq!(message.sender_name, "Anna");
+                    break;
+                }
+                Ok(_) => {}
+                Err(_) => {}
+            }
+        }
+
+        a.shutdown();
+        b.shutdown();
+    }
+
+    fn wait_for_relay(events: &blocking::Receiver<Event>) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(90);
+        loop {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "no broker accepted the connection"
+            );
+            if let Ok(Event::Relay { up: true }) = events.recv_timeout(Duration::from_millis(500)) {
+                return;
+            }
+        }
     }
 }

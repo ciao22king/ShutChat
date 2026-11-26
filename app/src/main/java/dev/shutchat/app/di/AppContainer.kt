@@ -21,7 +21,7 @@ import dev.shutchat.app.p2p.call.CallController
 import dev.shutchat.app.p2p.lan.AndroidMulticastLock
 import dev.shutchat.app.p2p.lan.LanDiscovery
 import dev.shutchat.app.p2p.lan.LanServer
-import dev.shutchat.app.p2p.nearby.NearbyTransport
+import dev.shutchat.app.p2p.proximity.MdnsTransport
 import dev.shutchat.app.p2p.protocol.isCallSignal
 import dev.shutchat.app.p2p.relay.RelayTransport
 import dev.shutchat.app.p2p.protocol.Envelope
@@ -58,7 +58,11 @@ class AppContainer(private val context: Context) {
 
     val lanDiscovery: LanDiscovery by lazy { LanDiscovery(AndroidMulticastLock(context)) }
 
-    val nearby: NearbyTransport by lazy { NearbyTransport(context) }
+    /**
+     * Proximity transport. mDNS plus a TCP socket, both from the Android
+     * framework: no Play Services, so this works on an AOSP build too.
+     */
+    val proximity: MdnsTransport by lazy { MdnsTransport(context, appScope) }
 
     /** Public-broker transport for long distance. Off unless the user enables it. */
     val relay: RelayTransport by lazy {
@@ -70,7 +74,7 @@ class AppContainer(private val context: Context) {
     val mesh: MeshEngine by lazy {
         MeshEngine(
             scope = appScope,
-            proximity = nearby,
+            proximity = proximity,
             lanServer = lanServer,
             lanDiscovery = lanDiscovery,
             relay = relay,

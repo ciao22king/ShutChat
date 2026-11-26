@@ -22,8 +22,8 @@ is guesswork.
 | SQLite store | chats, messages, receipts, per-chat unread |
 | Slint UI | chat list, conversation with bubbles/timestamps/status, join and settings pages |
 | notifications | `org.freedesktop.Notifications` through `notify-rust` |
-| relay (MQTT) | next |
-| attachments, voice notes | after the relay |
+| relay (MQTT) | ported: three public brokers with failover, persistent session, QoS 1, sealed frames on the topic derived from the invite secret (`app/src/relay.rs`) |
+| attachments, voice notes | next |
 | calls (`webrtc-rs`) | last |
 
 ## Layout
@@ -50,16 +50,29 @@ Each step lands with its tests, and the wire format does not change.
 | 1 | `domain/codec/InviteCodec.kt` | 139 | `core/src/invite.rs` |
 | 2 | `p2p/protocol/Envelope.kt`, `EnvelopeCodec.kt`, `EnvelopeKeys.kt` | 571 | `core/src/envelope.rs` |
 | 3 | `crypto/RoomCrypto.kt` | 132 | `core/src/crypto.rs` (dalek + chacha20poly1305) |
-| 4 | `p2p/protocol/Framing`, `PeerLink.kt` | 269 | `core/src/link.rs` |
-| 5 | `p2p/lan/LanTransport.kt` | 313 | `core/src/lan.rs` (UDP multicast + TCP) |
-| 6 | `p2p/relay/*.kt` | 761 | `core/src/relay.rs` (MQTT client) |
-| 7 | `p2p/MeshEngine.kt`, `MeshModel.kt` | 854 | `core/src/mesh.rs` |
+| 4 | `p2p/protocol/Framing`, `PeerLink.kt` | 269 | `core/src/framing.rs` |
+| 5 | `p2p/lan/LanTransport.kt` | 313 | `app/src/mesh.rs` (UDP multicast + TCP) |
+| 6 | `p2p/relay/*.kt` | 761 | `app/src/relay.rs` (rumqttc, TLS, system roots) |
+| 7 | `p2p/MeshEngine.kt`, `MeshModel.kt` | 854 | `app/src/mesh.rs` |
 | 8 | `p2p/call/CallState.kt`, `CallController.kt` | 701 | `core/src/call/*` (webrtc-rs) |
-| 9 | `domain/*`, `data/repo/*` | — | `app/src/store` (SQLite via sqlx) |
+| 9 | `domain/*`, `data/repo/*` | — | `app/src/store.rs` (SQLite via rusqlite) |
 | 10 | `ui/screens/*` | — | `ui/src/*.slint` |
 
 Steps 1 to 8 are the whole protocol; they are what makes a Linux client able to
 join an existing chat. Steps 9 and 10 are the local side.
+
+Two of the tests need the internet and are therefore ignored by default. Run
+them on purpose:
+
+```bash
+cd rust
+cargo test -p shutchat -- --ignored                    # both broker tests
+cargo test -p shutchat -- --ignored a_message_crosses  # two clients, one message
+```
+
+`a_message_crosses_the_relay_between_two_clients` starts two real meshes with
+`SHUTCHAT_NO_LAN` set, so the only path between them is the public broker. It is
+the test that proves long distance works, and the one to run before a release.
 
 ## Parity checklist
 
