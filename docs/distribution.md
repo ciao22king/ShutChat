@@ -61,9 +61,9 @@ RepoType: git
 Repo: https://github.com/ciao22king/ShutChat.git
 
 Builds:
-  - versionName: 1.4.0
-    versionCode: 6
-    commit: v1.4.0
+  - versionName: 0.1.0
+    versionCode: 9
+    commit: v0.1.0
     subdir: app
     gradle:
       - floss
@@ -72,8 +72,8 @@ AllowedAPKSigningKeys: 9b688bfb5e8688e2d8c833ecca9dfd58ee6bb97ae05954841d5a5fa33
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 1.4.0
-CurrentVersionCode: 6
+CurrentVersion: 0.1.0
+CurrentVersionCode: 9
 ```
 
 The signing key line is the certificate SHA-256 without colons. It lets F-Droid
@@ -91,7 +91,7 @@ The repository checks the following, in their words:
   This is the judgement call in the review;
 - APK under 30 MB: **not met**, the 1.3.5 APK is 30.2 MB;
 - Fastlane metadata present and tidy: met, see `fastlane/metadata/android/`;
-- releases tagged and tags matching versionName: met, `v1.4.0`.
+- releases tagged and tags matching versionName: met, `v0.1.0`.
 
 ### Shrinking the APK
 
