@@ -2,6 +2,8 @@
 [![Apache License 2.0](https://img.shields.io/badge/Apache%20License%202.0-FFFFFF?logo=apache&logoColor=D22128&style=for-the-badge)](#)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)
+
 
 # ShutChat!
 
