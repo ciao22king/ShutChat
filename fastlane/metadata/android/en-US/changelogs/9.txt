@@ -1,0 +1,3 @@
+- Long distance: messages now cross networks through a public relay. Frames stay sealed end to end, so the broker cannot read them.
+- The relay can be switched off in Settings, which says whether it is off, connecting or connected.
+- Version numbering restarts at 0.1.0.
